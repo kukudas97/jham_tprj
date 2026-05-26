@@ -21,12 +21,14 @@ const AssetDetailPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     if (!pid) return;
     try {
-      const [assetData, inspectionsData] = await Promise.all([
+      const [assetData, inspectionsData, qrData] = await Promise.all([
         assetsApi.get(pid),
         assetsApi.listInspections(pid),
+        assetsApi.getQr(pid).catch(() => null),
       ]);
       setAsset(assetData);
       setInspections(inspectionsData);
+      setQr(qrData);
     } finally {
       setLoading(false);
     }
