@@ -274,7 +274,9 @@ pub async fn get_public(
     Path(pid): Path<String>,
     State(ctx): State<AppContext>,
 ) -> Result<Response> {
-    let asset = Model::find_by_pid(&ctx.db, &pid).await?;
+    let asset = Model::find_by_pid(&ctx.db, &pid)
+        .await
+        .map_err(|_| Error::NotFound)?;
     format::json(AssetPublicResponse {
         pid: asset.pid.to_string(),
         name: asset.name,
@@ -290,7 +292,9 @@ pub async fn add_public_inspection(
     State(ctx): State<AppContext>,
     Json(params): Json<InspectionParams>,
 ) -> Result<Response> {
-    let asset = Model::find_by_pid(&ctx.db, &pid).await?;
+    let asset = Model::find_by_pid(&ctx.db, &pid)
+        .await
+        .map_err(|_| Error::NotFound)?;
     let mut item = asset_inspections::ActiveModel { ..Default::default() };
     item.asset_id = Set(asset.id);
     item.inspector_name = Set(params.inspector_name);
