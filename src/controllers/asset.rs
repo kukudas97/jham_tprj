@@ -192,7 +192,8 @@ pub async fn add(
 
     save_field_values(&ctx.db, item.id, &params.field_values, company_id).await?;
 
-    let image_path = services::qr_code::generate(&item.pid.to_string())
+    let base_url = ctx.config.server.full_url();
+    let image_path = services::qr_code::generate(&item.pid.to_string(), &base_url)
         .map_err(|e| Error::Message(e.to_string()))?;
     qr_codes::ActiveModel {
         asset_id: Set(item.id),
@@ -307,20 +308,18 @@ pub async fn get_qr(
     let company_id = get_company_id(&auth, &ctx).await?;
     let asset = Model::find_by_pid_and_company(&ctx.db, &pid, company_id).await?;
 
-    let existing_qr = qr_codes::Model::find_by_asset(&ctx.db, asset.id).await?;
+    let base_url = ctx.config.server.full_url();
+    let image_path = services::qr_code::generate(&asset.pid.to_string(), &base_url)
+        .map_err(|e| Error::Message(e.to_string()))?;
 
+    let existing_qr = qr_codes::Model::find_by_asset(&ctx.db, asset.id).await?;
     let qr = match existing_qr {
-        Some(q) if std::path::Path::new(&q.image_path).exists() => q,
         Some(stale) => {
-            let image_path = services::qr_code::generate(&asset.pid.to_string())
-                .map_err(|e| Error::Message(e.to_string()))?;
             let mut active = stale.into_active_model();
             active.image_path = Set(image_path);
             active.update(&ctx.db).await?
         }
         None => {
-            let image_path = services::qr_code::generate(&asset.pid.to_string())
-                .map_err(|e| Error::Message(e.to_string()))?;
             qr_codes::ActiveModel {
                 asset_id: Set(asset.id),
                 image_path: Set(image_path),

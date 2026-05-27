@@ -1,17 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
-import type { Asset, Inspection, QrCode } from '../api/types';
+import * as categoriesApi from '../api/categories';
+import type { Asset, Category, Inspection, QrCode } from '../api/types';
 import Layout from '../components/Layout';
+import AssetFormModal from '../components/AssetFormModal';
 
 const AssetDetailPage: React.FC = () => {
   const { pid } = useParams<{ pid: string }>();
   const navigate = useNavigate();
   const [asset, setAsset] = useState<Asset | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [qr, setQr] = useState<QrCode | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const [showAddInspection, setShowAddInspection] = useState(false);
   const [inspectorName, setInspectorName] = useState('');
@@ -23,14 +27,16 @@ const AssetDetailPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     if (!pid) return;
     try {
-      const [assetData, inspectionsData, qrData] = await Promise.all([
+      const [assetData, inspectionsData, qrData, catData] = await Promise.all([
         assetsApi.get(pid),
         assetsApi.listInspections(pid),
         assetsApi.getQr(pid).catch(() => null),
+        categoriesApi.list(),
       ]);
       setAsset(assetData);
       setInspections(inspectionsData);
       setQr(qrData);
+      setCategories(catData);
     } finally {
       setLoading(false);
     }
@@ -100,18 +106,31 @@ const AssetDetailPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="p-6 max-w-4xl">
-        {/* 뒤로가기 */}
-        <button
-          type="button"
-          onClick={() => navigate('/assets')}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          자산 목록
-        </button>
+      <div className="p-4 md:p-6 max-w-4xl">
+        {/* 뒤로가기 + 수정 버튼 */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={() => navigate('/assets')}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            자산 목록
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEditModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            수정
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 자산 정보 */}
@@ -216,7 +235,6 @@ const AssetDetailPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* 점검 추가 폼 */}
               {showAddInspection && (
                 <form onSubmit={handleAddInspection} className="mb-4 p-4 bg-blue-50 rounded-lg space-y-3">
                   <div>
@@ -295,7 +313,7 @@ const AssetDetailPage: React.FC = () => {
                   다운로드
                 </a>
                 <p className="text-xs text-gray-400 text-center">
-                  QR 스캔 URL: /qr/{asset.pid}
+                  QR 스캔 시 자산 상세 페이지로 이동합니다
                 </p>
               </div>
             ) : (
@@ -320,6 +338,18 @@ const AssetDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showEditModal && (
+        <AssetFormModal
+          editing={asset}
+          categories={categories}
+          onClose={() => setShowEditModal(false)}
+          onSave={(saved) => {
+            setAsset(saved);
+            setShowEditModal(false);
+          }}
+        />
+      )}
     </Layout>
   );
 };

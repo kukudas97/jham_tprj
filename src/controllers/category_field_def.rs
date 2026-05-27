@@ -118,8 +118,8 @@ pub async fn remove(
 pub fn routes() -> Routes {
     Routes::new()
         .prefix("api/categories/")
-        .add("{cat_pid}/fields", get(list))
-        .add("{cat_pid}/fields", post(create))
-        .add("{cat_pid}/fields/{field_pid}", put(update))
-        .add("{cat_pid}/fields/{field_pid}", delete(remove))
+        .add("{pid}/fields", get(list))
+        .add("{pid}/fields", post(create))
+        .add("{pid}/fields/{field_pid}", put(update))
+        .add("{pid}/fields/{field_pid}", delete(remove))
 }

@@ -24,7 +24,8 @@ pub async fn add(State(ctx): State<AppContext>, Json(params): Json<Params>) -> R
         .await?
         .ok_or_else(|| Error::NotFound)?;
 
-    let image_path = services::qr_code::generate(&asset.pid.to_string())
+    let base_url = ctx.config.server.full_url();
+    let image_path = services::qr_code::generate(&asset.pid.to_string(), &base_url)
         .map_err(|e| Error::Message(e.to_string()))?;
 
     let mut item = ActiveModel {
