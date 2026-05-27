@@ -24,6 +24,14 @@ export const addInspection = (pid: string, inspector_name: string, note?: string
     .post<Inspection>(`/assets/${pid}/inspections`, { inspector_name, note })
     .then((r) => r.data);
 
+export const uploadPhoto = (pid: string, file: File) => {
+  const form = new FormData();
+  form.append('photo', file);
+  return client.post<Asset>(`/assets/${pid}/photo`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
 export const getPublic = (pid: string) =>
   client.get<Asset>(`/assets/public/${pid}`).then((r) => r.data);
 

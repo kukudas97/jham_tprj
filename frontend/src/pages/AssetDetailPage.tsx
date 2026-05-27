@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import type { Asset, Inspection, QrCode } from '../api/types';
@@ -17,6 +17,8 @@ const AssetDetailPage: React.FC = () => {
   const [inspectorName, setInspectorName] = useState('');
   const [inspectionNote, setInspectionNote] = useState('');
   const [addingInspection, setAddingInspection] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     if (!pid) return;
@@ -44,6 +46,19 @@ const AssetDetailPage: React.FC = () => {
       setQr(data);
     } finally {
       setQrLoading(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pid) return;
+    setUploadingPhoto(true);
+    try {
+      const updated = await assetsApi.uploadPhoto(pid, file);
+      setAsset(updated);
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
     }
   };
 
@@ -103,6 +118,58 @@ const AssetDetailPage: React.FC = () => {
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-4">{asset.name}</h2>
+
+              {/* 사진 */}
+              <div className="mb-4">
+                {asset.photo_url ? (
+                  <div className="relative group">
+                    <img
+                      src={asset.photo_url}
+                      alt="자산 사진"
+                      className="w-full max-h-56 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                    />
+                    <label className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-black/60 text-white text-xs px-2 py-1 rounded-lg">
+                      사진 변경
+                      <input
+                        ref={photoInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handlePhotoUpload}
+                        disabled={uploadingPhoto}
+                      />
+                    </label>
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-lg">
+                        <span className="text-xs text-gray-500">업로드 중...</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 h-24 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    {uploadingPhoto ? (
+                      <span className="text-xs text-gray-400">업로드 중...</span>
+                    ) : (
+                      <>
+                        <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-xs text-gray-400">사진 추가</span>
+                      </>
+                    )}
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                      disabled={uploadingPhoto}
+                    />
+                  </label>
+                )}
+              </div>
+
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <dt className="text-gray-400">시리얼 번호</dt>
@@ -116,6 +183,16 @@ const AssetDetailPage: React.FC = () => {
                   <dt className="text-gray-400">비고</dt>
                   <dd className="text-gray-800 mt-0.5">{asset.note ?? '-'}</dd>
                 </div>
+                {asset.category_name && (
+                  <div className="col-span-2">
+                    <dt className="text-gray-400">분류</dt>
+                    <dd className="mt-0.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                        {asset.category_name}
+                      </span>
+                    </dd>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <dt className="text-gray-400">자산 UUID</dt>
                   <dd className="text-gray-500 mt-0.5 font-mono text-xs">{asset.pid}</dd>

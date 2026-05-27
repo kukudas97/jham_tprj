@@ -2,9 +2,12 @@
 
 pub mod prelude;
 
+pub mod asset_categories;
+pub mod asset_field_values;
 pub mod asset_inspections;
 pub mod asset_uploads;
 pub mod assets;
+pub mod category_field_defs;
 pub mod companies;
 pub mod qr_codes;
 pub mod users;

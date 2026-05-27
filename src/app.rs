@@ -50,6 +50,8 @@ impl Hooks for App {
             .add_route(controllers::qr_code::routes())
             .add_route(controllers::asset_inspection::routes())
             .add_route(controllers::asset_upload::routes())
+            .add_route(controllers::asset_category::routes())
+            .add_route(controllers::category_field_def::routes())
             .add_route(controllers::asset::routes())
             .add_route(controllers::company::routes())
             .add_route(controllers::auth::routes())

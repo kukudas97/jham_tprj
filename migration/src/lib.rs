@@ -9,6 +9,12 @@ mod m20260526_073809_asset_inspections;
 mod m20260526_073941_qr_codes;
 mod m20260526_100000_add_company_id_to_users;
 mod m20260526_110000_asset_uploads;
+mod m20260527_000001_asset_categories;
+mod m20260527_000002_add_category_to_assets;
+mod m20260527_000003_add_required_fields_to_categories;
+mod m20260527_000004_category_field_defs;
+mod m20260527_000005_asset_field_values;
+mod m20260527_000006_add_photo_to_assets;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -22,6 +28,12 @@ impl MigratorTrait for Migrator {
             Box::new(m20260526_073941_qr_codes::Migration),
             Box::new(m20260526_100000_add_company_id_to_users::Migration),
             Box::new(m20260526_110000_asset_uploads::Migration),
+            Box::new(m20260527_000001_asset_categories::Migration),
+            Box::new(m20260527_000002_add_category_to_assets::Migration),
+            Box::new(m20260527_000003_add_required_fields_to_categories::Migration),
+            Box::new(m20260527_000004_category_field_defs::Migration),
+            Box::new(m20260527_000005_asset_field_values::Migration),
+            Box::new(m20260527_000006_add_photo_to_assets::Migration),
             // inject-above (do not remove this comment)
         ]
     }

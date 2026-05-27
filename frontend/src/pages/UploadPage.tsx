@@ -61,14 +61,19 @@ const UploadPage: React.FC = () => {
               <tbody className="space-y-1">
                 {[
                   ['name', '필수', '자산 이름'],
-                  ['serial_number', '선택', '시리얼 번호'],
-                  ['location', '선택', '위치'],
-                  ['note', '선택', '비고'],
+                  ['category', '필수', '대분류 이름 (자산분류 메뉴에서 등록된 이름과 정확히 일치해야 합니다)'],
+                  ['sub_category', '조건부', '소분류 이름 (해당 대분류에 소분류가 있는 경우 필수)'],
+                  ['serial_number', '조건부', '시리얼 번호 (분류 설정에 따라 필수일 수 있음)'],
+                  ['location', '조건부', '위치 (분류 설정에 따라 필수일 수 있음)'],
+                  ['note', '조건부', '비고 (분류 설정에 따라 필수일 수 있음)'],
+                  ['커스텀 필드명', '조건부', '자산분류 > 커스텀 필드에서 등록한 컬럼명 (field_name)을 그대로 사용. 분류 설정에 따라 필수일 수 있음'],
                 ].map(([col, req, desc]) => (
                   <tr key={col}>
                     <td className="py-1 pr-4 font-mono font-bold">{col}</td>
                     <td className="py-1 pr-4">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${req === '필수' ? 'bg-blue-200' : 'bg-blue-100'}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-xs ${
+                        req === '필수' ? 'bg-blue-200' : req === '조건부' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100'
+                      }`}>
                         {req}
                       </span>
                     </td>

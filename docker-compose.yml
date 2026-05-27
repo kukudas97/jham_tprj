@@ -37,16 +37,21 @@ services:
         condition: service_healthy
     ports:
       - "5150:5150"
+    volumes:
+      - qr_data:/app/qr
 
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/dist:/usr/share/nginx/html:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
 
 volumes:
   postgres_data:
+  qr_data:

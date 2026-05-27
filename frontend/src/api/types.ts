@@ -7,12 +7,31 @@ export interface LoginResponse {
   company_pid: string | null;
 }
 
+export interface FieldDef {
+  pid: string;
+  field_name: string;
+  field_label: string;
+  is_required: boolean;
+  sort_order: number;
+}
+
+export interface FieldValue {
+  field_def_pid: string;
+  field_name: string;
+  field_label: string;
+  value: string | null;
+}
+
 export interface Asset {
   pid: string;
   name: string;
   serial_number: string | null;
   location: string | null;
   note: string | null;
+  category_pid: string | null;
+  category_name: string | null;
+  field_values: FieldValue[];
+  photo_url: string | null;
 }
 
 export interface AssetParams {
@@ -20,6 +39,27 @@ export interface AssetParams {
   serial_number?: string;
   location?: string;
   note?: string;
+  category_pid?: string;
+  field_values?: { field_def_pid: string; value?: string }[];
+}
+
+export interface SubCategory {
+  pid: string;
+  name: string;
+}
+
+export interface CategoryRequiredFields {
+  serial_number: boolean;
+  location: boolean;
+  note: boolean;
+}
+
+export interface Category {
+  pid: string;
+  name: string;
+  children: SubCategory[];
+  required_fields: CategoryRequiredFields;
+  field_defs: FieldDef[];
 }
 
 export interface Inspection {

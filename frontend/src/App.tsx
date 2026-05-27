@@ -5,8 +5,10 @@ import AuthGuard from './components/AuthGuard';
 import LoginPage from './pages/LoginPage';
 import AssetsPage from './pages/AssetsPage';
 import AssetDetailPage from './pages/AssetDetailPage';
+import AssetCategoriesPage from './pages/AssetCategoriesPage';
 import UploadPage from './pages/UploadPage';
 import QrScanPage from './pages/QrScanPage';
+import HelpPage from './pages/HelpPage';
 
 const App: React.FC = () => (
   <AuthProvider>
@@ -31,10 +33,26 @@ const App: React.FC = () => (
           }
         />
         <Route
+          path="/categories"
+          element={
+            <AuthGuard>
+              <AssetCategoriesPage />
+            </AuthGuard>
+          }
+        />
+        <Route
           path="/upload"
           element={
             <AuthGuard>
               <UploadPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <AuthGuard>
+              <HelpPage />
             </AuthGuard>
           }
         />
