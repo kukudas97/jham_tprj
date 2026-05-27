@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import QrScannerModal from './QrScannerModal';
 
 const navItem =
-  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-colors';
-const activeNav = 'bg-blue-50 text-blue-700';
+  'flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
+const activeNav = '!bg-indigo-600 !text-white';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuth();
@@ -22,30 +22,38 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const SidebarContent = () => (
     <>
-      <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">JHAM</h1>
-          <p className="text-xs text-gray-400 mt-0.5">자산 관리 시스템</p>
+      <div className="px-5 py-5 border-b border-slate-700/60 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-sm font-bold text-white tracking-wide">JHAM</h1>
+            <p className="text-xs text-slate-500 mt-0.5">자산 관리</p>
+          </div>
         </div>
-        {/* 모바일에서만 보이는 닫기 버튼 */}
         <button
           type="button"
           onClick={closeSidebar}
-          className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100"
+          className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-0.5">
+        <p className="px-3 pt-3 pb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">메뉴</p>
         <button
           type="button"
           onClick={() => { setScannerOpen(true); closeSidebar(); }}
-          className={`w-full ${navItem}`}
+          className={navItem + ' w-full text-left'}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM6 12.5a.5.5 0 11-1 0 .5.5 0 011 0zM4 4h5v5H4V4zm11 0h5v5h-5V4zM4 15h5v5H4v-5z" />
           </svg>
@@ -56,7 +64,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           onClick={closeSidebar}
           className={({ isActive }) => `${navItem} ${isActive ? activeNav : ''}`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
@@ -67,7 +75,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           onClick={closeSidebar}
           className={({ isActive }) => `${navItem} ${isActive ? activeNav : ''}`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
           </svg>
@@ -78,7 +86,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           onClick={closeSidebar}
           className={({ isActive }) => `${navItem} ${isActive ? activeNav : ''}`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
@@ -89,7 +97,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           onClick={closeSidebar}
           className={({ isActive }) => `${navItem} ${isActive ? activeNav : ''}`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -97,25 +105,30 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </NavLink>
       </nav>
 
-      <div className="p-3 border-t border-gray-100 space-y-1">
-        <div className="px-3 py-1.5 text-xs text-gray-500 truncate">{user?.name}</div>
+      <div className="p-3 border-t border-slate-700/60 space-y-1">
         {user?.company_pid && (
-          <div className="px-3 py-2 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-400 mb-1">초대 코드</p>
+          <div className="px-3 py-2.5 bg-slate-800 rounded-lg mb-1">
+            <p className="text-xs text-slate-500 mb-1">초대 코드</p>
             <button
               type="button"
               onClick={() => { navigator.clipboard.writeText(user.company_pid ?? ''); }}
-              className="w-full text-left font-mono text-xs text-gray-600 truncate hover:text-blue-600 transition-colors"
+              className="w-full text-left font-mono text-xs text-slate-300 truncate hover:text-indigo-400 transition-colors"
               title="클릭하여 복사"
             >
               {user.company_pid}
             </button>
           </div>
         )}
+        <div className="flex items-center gap-2.5 px-3 py-2">
+          <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            {user?.name?.charAt(0) ?? '?'}
+          </div>
+          <span className="text-xs text-slate-400 truncate flex-1">{user?.name}</span>
+        </div>
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -128,22 +141,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-slate-100">
       {scannerOpen && <QrScannerModal onClose={() => setScannerOpen(false)} />}
 
-      {/* 모바일 오버레이 */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
           onClick={closeSidebar}
         />
       )}
 
-      {/* 사이드바: 데스크톱은 고정, 모바일은 드로어 */}
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-60 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col
+          w-60 flex-shrink-0 bg-slate-900 flex flex-col
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
         `}
@@ -151,10 +162,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <SidebarContent />
       </aside>
 
-      {/* 메인 영역 */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* 모바일 상단 헤더 */}
-        <header className="lg:hidden flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 z-20">
+        <header className="lg:hidden flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm z-20">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -164,7 +173,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="font-bold text-gray-900">JHAM</span>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-indigo-600 rounded flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <span className="font-bold text-gray-900 text-sm">JHAM</span>
+          </div>
           <button
             type="button"
             onClick={() => setScannerOpen(true)}

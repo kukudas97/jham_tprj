@@ -138,15 +138,23 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
     }
   };
 
+  const inputCls = (hasError: boolean) =>
+    `w-full px-3 py-2.5 border rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors ${
+      hasError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+    }`;
+
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900">{editing ? '자산 수정' : '자산 등록'}</h3>
+          <div>
+            <h3 className="font-bold text-gray-900">{editing ? '자산 수정' : '자산 등록'}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{editing ? '자산 정보를 수정합니다' : '새 자산을 등록합니다'}</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -155,24 +163,26 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         </div>
         <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">자산명 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">자산명 *</label>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+              placeholder="자산 이름을 입력하세요"
+              className={inputCls(false)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">분류 *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">분류 *</label>
             <div className="flex gap-2">
               <select
                 value={selectedParentPid}
                 onChange={(e) => handleParentChange(e.target.value)}
-                className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
-                  !selectedParentPid ? 'border-red-300' : 'border-gray-300'
+                className={`flex-1 px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white transition-colors ${
+                  !selectedParentPid ? 'border-red-300' : 'border-gray-200'
                 }`}
               >
                 <option value="">대분류 선택 *</option>
@@ -184,8 +194,8 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
                 <select
                   value={form.category_pid ?? ''}
                   onChange={(e) => setForm({ ...form, category_pid: e.target.value })}
-                  className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
-                    !form.category_pid ? 'border-red-300' : 'border-gray-300'
+                  className={`flex-1 px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white transition-colors ${
+                    !form.category_pid ? 'border-red-300' : 'border-gray-200'
                   }`}
                 >
                   <option value="">소분류 선택 *</option>
@@ -198,53 +208,50 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               시리얼 번호 {activeRequiredFields.serial_number && <span className="text-red-500">*</span>}
             </label>
             <input
               type="text"
               value={form.serial_number ?? ''}
               onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                activeRequiredFields.serial_number && !form.serial_number?.trim() ? 'border-red-300' : 'border-gray-300'
-              }`}
+              placeholder="시리얼 번호"
+              className={inputCls(activeRequiredFields.serial_number && !form.serial_number?.trim())}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               위치 {activeRequiredFields.location && <span className="text-red-500">*</span>}
             </label>
             <input
               type="text"
               value={form.location ?? ''}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                activeRequiredFields.location && !form.location?.trim() ? 'border-red-300' : 'border-gray-300'
-              }`}
+              placeholder="위치"
+              className={inputCls(activeRequiredFields.location && !form.location?.trim())}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               비고 {activeRequiredFields.note && <span className="text-red-500">*</span>}
             </label>
             <textarea
               value={form.note ?? ''}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               rows={2}
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                activeRequiredFields.note && !form.note?.trim() ? 'border-red-300' : 'border-gray-300'
-              }`}
+              placeholder="비고 내용"
+              className={`${inputCls(activeRequiredFields.note && !form.note?.trim())} resize-none`}
             />
           </div>
 
           {activeFieldDefs.length > 0 && (
             <div className="border-t border-gray-100 pt-4 space-y-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">추가 정보</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">추가 정보</p>
               {activeFieldDefs.map((def) => (
                 <div key={def.pid}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     {def.field_label}
                     {def.is_required && <span className="text-red-500 ml-0.5">*</span>}
                   </label>
@@ -254,9 +261,7 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
                     onChange={(e) =>
                       setCustomFieldValues((prev) => ({ ...prev, [def.pid]: e.target.value }))
                     }
-                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      def.is_required && !customFieldValues[def.pid]?.trim() ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={inputCls(def.is_required && !customFieldValues[def.pid]?.trim())}
                   />
                 </div>
               ))}
@@ -266,22 +271,22 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
           <div className="border-t border-gray-100 pt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">사진</label>
             {photoPreview && (
-              <div className="mb-2 relative w-full">
+              <div className="mb-2 relative w-full bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
                 <img
                   src={photoPreview}
                   alt="자산 사진"
-                  className="w-full max-h-40 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                  className="w-full max-h-40 object-contain"
                 />
                 <button
                   type="button"
                   onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
-                  className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center text-xs hover:bg-black/70"
+                  className="absolute top-2 right-2 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center text-xs hover:bg-black/70 backdrop-blur-sm"
                 >
                   ✕
                 </button>
               </div>
             )}
-            <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+            <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -294,23 +299,29 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
           </div>
 
           {formError && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{formError}</p>
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+              <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-red-600">{formError}</p>
+            </div>
           )}
 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
             >
-              {saving ? '저장 중...' : '저장'}
+              {saving ? '저장 중...' : (editing ? '저장' : '등록')}
             </button>
           </div>
         </form>
