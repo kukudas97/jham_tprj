@@ -199,7 +199,19 @@ async fn do_parse_and_insert(
 
     let get_str = |row: &[Data], idx: Option<usize>| -> Option<String> {
         idx.and_then(|i| row.get(i)).and_then(|v| {
-            let s = DataType::get_string(v).unwrap_or("").trim().to_string();
+            let s = match v {
+                Data::String(s) => s.trim().to_string(),
+                Data::Int(n) => n.to_string(),
+                Data::Float(f) => {
+                    if f.fract() == 0.0 && *f >= i64::MIN as f64 && *f <= i64::MAX as f64 {
+                        (*f as i64).to_string()
+                    } else {
+                        f.to_string()
+                    }
+                }
+                Data::Bool(b) => b.to_string(),
+                _ => return None,
+            };
             if s.is_empty() { None } else { Some(s) }
         })
     };

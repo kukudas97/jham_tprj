@@ -5,10 +5,11 @@ import * as categoriesApi from '../api/categories';
 import type { Asset, Category } from '../api/types';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
+import ExcelExportModal from '../components/ExcelExportModal';
 import LabelPrintModal from '../components/LabelPrintModal';
 import { printLabels } from '../utils/printLabels';
 
-async function exportExcel(assets: Asset[], categories: Category[]) {
+async function exportExcel(assets: Asset[], categories: Category[], includeQr: boolean) {
   const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JHAM';
@@ -24,18 +25,25 @@ async function exportExcel(assets: Asset[], categories: Category[]) {
     );
     if (catAssets.length === 0) continue;
 
+    const fieldDefs = parent.field_defs ?? [];
+    const qrColNum = 5 + fieldDefs.length + 1; // 1-indexed (순번~부서명=5 + 커스텀 + QR)
+
     const sheet = workbook.addWorksheet(parent.name.slice(0, 31));
     sheet.columns = [
       { key: 'idx', width: 6 },
+      { key: 'asset_name', width: 14 },
       { key: 'name', width: 22 },
-      { key: 'sub', width: 14 },
       { key: 'serial', width: 20 },
       { key: 'location', width: 16 },
-      { key: 'note', width: 22 },
-      { key: 'qr', width: 13 },
+      ...fieldDefs.map((def) => ({ key: `field_${def.pid}`, width: 16 })),
+      ...(includeQr ? [{ key: 'qr', width: 13 }] : []),
     ];
 
-    const headers = ['순번', '자산명', '소분류', '시리얼번호', '위치', '비고', 'QR코드'];
+    const headers = [
+      '순번', '자산명', '품명', '식별번호', '부서명',
+      ...fieldDefs.map((def) => def.field_label),
+      ...(includeQr ? ['QR코드'] : []),
+    ];
     const headerRow = sheet.addRow(headers);
     headerRow.height = 22;
     headerRow.eachCell((cell) => {
@@ -45,18 +53,22 @@ async function exportExcel(assets: Asset[], categories: Category[]) {
       cell.border = { bottom: BORDER, right: BORDER };
     });
 
-    const ROW_HEIGHT = 72;
+    const ROW_HEIGHT = includeQr ? 72 : 20;
 
     for (const [i, asset] of catAssets.entries()) {
       const rowNum = i + 2;
+      const customValues = fieldDefs.map((def) => {
+        const fv = asset.field_values?.find((v) => v.field_def_pid === def.pid);
+        return fv?.value ?? '';
+      });
       const row = sheet.addRow([
         i + 1,
-        asset.name,
         asset.category_name ?? '',
+        asset.name,
         asset.serial_number ?? '',
         asset.location ?? '',
-        asset.note ?? '',
-        '',
+        ...customValues,
+        ...(includeQr ? [''] : []),
       ]);
       row.height = ROW_HEIGHT;
 
@@ -67,36 +79,31 @@ async function exportExcel(assets: Asset[], categories: Category[]) {
       }
 
       row.eachCell((cell, col) => {
-        cell.alignment = {
-          vertical: 'middle',
-          horizontal: col === 1 ? 'center' : 'left',
-          wrapText: col === 6,
-        };
+        cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left' };
         cell.border = { bottom: BORDER, right: BORDER };
       });
 
-      try {
-        const imgRes = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
-        if (!imgRes.ok) {
-          await assetsApi.getQr(asset.pid);
-          const retry = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
-          if (!retry.ok) continue;
-          const buf = await retry.arrayBuffer();
-          const imgId = workbook.addImage({ buffer: buf, extension: 'png' });
-          sheet.addImage(imgId, {
-            tl: { col: 6, row: rowNum - 1 } as { col: number; row: number },
-            ext: { width: 68, height: 68 },
-          });
-        } else {
-          const buf = await imgRes.arrayBuffer();
-          const imgId = workbook.addImage({ buffer: buf, extension: 'png' });
-          sheet.addImage(imgId, {
-            tl: { col: 6, row: rowNum - 1 } as { col: number; row: number },
-            ext: { width: 68, height: 68 },
-          });
+      if (includeQr) {
+        try {
+          let buf: ArrayBuffer | null = null;
+          const imgRes = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
+          if (imgRes.ok) {
+            buf = await imgRes.arrayBuffer();
+          } else {
+            await assetsApi.getQr(asset.pid);
+            const retry = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
+            if (retry.ok) buf = await retry.arrayBuffer();
+          }
+          if (buf) {
+            const imgId = workbook.addImage({ buffer: buf, extension: 'png' });
+            sheet.addImage(imgId, {
+              tl: { col: qrColNum - 1, row: rowNum - 1 } as { col: number; row: number },
+              ext: { width: 68, height: 68 },
+            });
+          }
+        } catch {
+          // skip image on error
         }
-      } catch {
-        // skip image on error
       }
     }
   }
@@ -125,6 +132,7 @@ const AssetsPage: React.FC = () => {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const allCheckboxRef = useRef<HTMLInputElement>(null);
@@ -241,10 +249,7 @@ const AssetsPage: React.FC = () => {
             )}
             <button
               type="button"
-              onClick={async () => {
-                setExporting(true);
-                try { await exportExcel(targetAssets, categories); } finally { setExporting(false); }
-              }}
+              onClick={() => setShowExcelModal(true)}
               disabled={exporting || loading || targetAssets.length === 0}
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors shadow-sm"
               title={selectedPids.size > 0
@@ -576,6 +581,23 @@ const AssetsPage: React.FC = () => {
           categories={categories}
           onClose={() => setShowModal(false)}
           onSave={() => { setShowModal(false); fetchAll(); }}
+        />
+      )}
+
+      {showExcelModal && (
+        <ExcelExportModal
+          assetCount={targetAssets.length}
+          exporting={exporting}
+          onClose={() => setShowExcelModal(false)}
+          onExport={async (includeQr) => {
+            setExporting(true);
+            try {
+              await exportExcel(targetAssets, categories, includeQr);
+              setShowExcelModal(false);
+            } finally {
+              setExporting(false);
+            }
+          }}
         />
       )}
 

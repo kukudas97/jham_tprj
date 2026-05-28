@@ -129,6 +129,11 @@ const AssetDetailPage: React.FC = () => {
     return parent ? `${parent.name} > ${asset.category_name}` : asset.category_name;
   })();
 
+  const parentCategory = categories.find(
+    (c) => c.pid === asset.category_pid || c.children.some((ch) => ch.pid === asset.category_pid),
+  );
+  const fieldDefs = parentCategory?.field_defs ?? [];
+
   return (
     <Layout>
       <div className="p-4 md:p-6 max-w-5xl">
@@ -225,27 +230,35 @@ const AssetDetailPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <dt className="text-xs text-gray-400 mb-1">시리얼 번호</dt>
+                    <dt className="text-xs text-gray-400 mb-1">식별번호</dt>
                     <dd className="text-gray-800 font-medium font-mono text-xs">{asset.serial_number ?? '-'}</dd>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <dt className="text-xs text-gray-400 mb-1">위치</dt>
+                    <dt className="text-xs text-gray-400 mb-1">부서명</dt>
                     <dd className="text-gray-800 font-medium">{asset.location ?? '-'}</dd>
                   </div>
-                  <div className="col-span-2 bg-gray-50 rounded-xl p-3">
-                    <dt className="text-xs text-gray-400 mb-1">비고</dt>
-                    <dd className="text-gray-700">{asset.note ?? '-'}</dd>
-                  </div>
-                  {asset.field_values && asset.field_values.length > 0 && (
-                    <>
-                      {asset.field_values.map((fv) => (
+                  {asset.note && (
+                    <div className="col-span-2 bg-gray-50 rounded-xl p-3">
+                      <dt className="text-xs text-gray-400 mb-1">비고</dt>
+                      <dd className="text-gray-700">{asset.note}</dd>
+                    </div>
+                  )}
+                  {fieldDefs.length > 0
+                    ? fieldDefs.map((def) => {
+                        const saved = asset.field_values.find((v) => v.field_def_pid === def.pid);
+                        return (
+                          <div key={def.pid} className="bg-gray-50 rounded-xl p-3">
+                            <dt className="text-xs text-gray-400 mb-1">{def.field_label}</dt>
+                            <dd className="text-gray-800 font-medium">{saved?.value ?? '-'}</dd>
+                          </div>
+                        );
+                      })
+                    : asset.field_values.map((fv) => (
                         <div key={fv.field_def_pid} className="bg-gray-50 rounded-xl p-3">
-                          <dt className="text-xs text-gray-400 mb-1">{fv.field_label ?? fv.field_def_pid}</dt>
+                          <dt className="text-xs text-gray-400 mb-1">{fv.field_label}</dt>
                           <dd className="text-gray-800 font-medium">{fv.value ?? '-'}</dd>
                         </div>
                       ))}
-                    </>
-                  )}
                   <div className="col-span-2 border-t border-gray-100 pt-3 mt-1">
                     <dt className="text-xs text-gray-400 mb-0.5">자산 UUID</dt>
                     <dd className="text-gray-400 font-mono text-xs">{asset.pid}</dd>
