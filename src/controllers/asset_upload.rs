@@ -325,27 +325,29 @@ async fn do_parse_and_insert(
             .await
             .map_err(|e| format!("DB 저장 실패: {}", e))?;
 
-            // 팀명, 관리자 → 커스텀 필드 찾기/저장
+            // 팀명, 관리자 → 커스텀 필드 자동 생성 후 저장
             for (val_opt, label) in [
                 (get_str(row, team_col), "팀명"),
                 (get_str(row, manager_col), "관리자"),
             ] {
                 if let Some(val) = val_opt {
-                    // 이미 존재하는 필드 찾기 (없으면 자동 생성하지 않음 - 선택 항목이므로)
-                    if let Some(def) = all_defs.iter().find(|d| {
-                        d.category_id == parent_cat.id
-                            && (d.field_label == label || d.field_name == label)
-                    }) {
-                        asset_field_values::ActiveModel {
-                            asset_id: Set(asset.id),
-                            field_def_id: Set(def.id),
-                            value: Set(Some(val)),
-                            ..Default::default()
-                        }
-                        .insert(db)
-                        .await
-                        .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
+                    let def = find_or_create_field_def(
+                        db,
+                        &mut all_defs,
+                        label,
+                        &parent_cat,
+                        company_id,
+                    )
+                    .await?;
+                    asset_field_values::ActiveModel {
+                        asset_id: Set(asset.id),
+                        field_def_id: Set(def.id),
+                        value: Set(Some(val)),
+                        ..Default::default()
                     }
+                    .insert(db)
+                    .await
+                    .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
                 }
             }
 

@@ -209,6 +209,9 @@ const AssetsPage: React.FC = () => {
     return parent ? `${parent.name} > ${asset.category_name}` : asset.category_name;
   };
 
+  const getFieldValue = (asset: Asset, label: string) =>
+    asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
+
   const categorizedCount = assets.filter((a) => a.category_pid).length;
 
   return (
@@ -403,11 +406,12 @@ const AssetsPage: React.FC = () => {
                         className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       />
                     </th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">자산명</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">품명</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">분류</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">시리얼</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">위치</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">비고</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">식별번호</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">부서명</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">팀명</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">관리자</th>
                     <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">동작</th>
                   </tr>
                 </thead>
@@ -448,7 +452,8 @@ const AssetsPage: React.FC = () => {
                         </td>
                         <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
                         <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.location ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 max-w-xs truncate hidden lg:table-cell">{asset.note ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{getFieldValue(asset, '팀명') ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{getFieldValue(asset, '관리자') ?? '-'}</td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -542,13 +547,18 @@ const AssetsPage: React.FC = () => {
                         </span>
                       )}
                       {asset.location && (
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
+                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                           {asset.location}
+                        </span>
+                      )}
+                      {getFieldValue(asset, '팀명') && (
+                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                          {getFieldValue(asset, '팀명')}
+                        </span>
+                      )}
+                      {getFieldValue(asset, '관리자') && (
+                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                          {getFieldValue(asset, '관리자')}
                         </span>
                       )}
                     </div>
