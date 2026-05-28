@@ -53,11 +53,12 @@ export async function printLabels(
     ? `<img class="logo" src="${logoDataUrl}" alt="logo">`
     : '';
 
-  const labelsHtml = assets
-    .map((asset) => {
-      const parentName = getParentName(asset);
-      const qrSrc = qrMap[asset.pid] ?? '';
-      return `
+  const LABELS_PER_PAGE = 24; // 3열 × 8행
+
+  const labelHtml = (asset: Asset) => {
+    const parentName = getParentName(asset);
+    const qrSrc = qrMap[asset.pid] ?? '';
+    return `
       <div class="label">
         <div class="top">
           <div class="table-part">
@@ -85,8 +86,16 @@ export async function printLabels(
           ${logoHtml}
         </div>
       </div>`;
-    })
-    .join('');
+  };
+
+  // 24개씩 페이지 분할
+  const sheetsHtml = Array.from(
+    { length: Math.ceil(assets.length / LABELS_PER_PAGE) },
+    (_, pageIdx) => {
+      const pageAssets = assets.slice(pageIdx * LABELS_PER_PAGE, (pageIdx + 1) * LABELS_PER_PAGE);
+      return `<div class="sheet">${pageAssets.map(labelHtml).join('')}</div>`;
+    },
+  ).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -114,6 +123,8 @@ export async function printLabels(
     column-gap: 2mm;
     row-gap: 0.7mm;
     overflow: hidden;
+    page-break-after: always;
+    break-after: page;
   }
 
   /* 라벨 전체 */
@@ -223,9 +234,7 @@ export async function printLabels(
 </style>
 </head>
 <body>
-  <div class="sheet">
-    ${labelsHtml}
-  </div>
+  ${sheetsHtml}
 </body>
 </html>`;
 
