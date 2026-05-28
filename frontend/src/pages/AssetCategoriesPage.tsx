@@ -438,6 +438,9 @@ const AssetCategoriesPage: React.FC = () => {
   const selectedCategory = categories.find((c) => c.pid === selectedPid)
     || categories.flatMap((c) => c.children).find((c) => c.pid === selectedPid);
 
+  const getFieldValue = (asset: Asset, label: string) =>
+    asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
+
   return (
     <Layout>
       <div className="p-6 flex gap-6 h-full">
@@ -713,6 +716,8 @@ const AssetCategoriesPage: React.FC = () => {
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">품명</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">식별번호</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">부서명</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">팀명</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">관리자</th>
                     </tr>
                   </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -727,8 +732,10 @@ const AssetCategoriesPage: React.FC = () => {
                           {asset.name}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{asset.serial_number ?? '-'}</td>
+                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
                       <td className="px-4 py-3 text-gray-500">{asset.location ?? '-'}</td>
+                      <td className="px-4 py-3 text-gray-500">{getFieldValue(asset, '팀명') ?? '-'}</td>
+                      <td className="px-4 py-3 text-gray-500">{getFieldValue(asset, '관리자') ?? '-'}</td>
                     </tr>
                   ))}
                 </tbody>
