@@ -138,7 +138,7 @@ const UploadPage: React.FC = () => {
         </div>
 
         {/* 양식 안내 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
           <h4 className="text-sm font-semibold text-blue-800 mb-1">Excel 양식 안내</h4>
           <p className="text-xs text-blue-700 mb-3">
             시트명 = <strong>대분류</strong> 이름 / 첫 번째 행은 헤더입니다.
@@ -154,7 +154,7 @@ const UploadPage: React.FC = () => {
               </thead>
               <tbody>
                 {[
-                  ['자산명', '필수', '소분류 이름 (해당 대분류에 소분류가 있을 경우 정확히 일치해야 함)'],
+                  ['자산명', '필수', '소분류 이름 (없으면 자동 생성됨)'],
                   ['부서명', '필수', '자산 사용 부서명'],
                   ['팀명', '선택', '팀 이름 (해당 분류에 팀명 커스텀 필드가 있으면 저장됨)'],
                   ['관리자', '선택', '담당자 이름 (해당 분류에 관리자 커스텀 필드가 있으면 저장됨)'],
@@ -179,6 +179,48 @@ const UploadPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* 자동 처리 안내 */}
+        <div className="space-y-2 mb-6">
+          {/* 자동 분류 생성 */}
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3.5">
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-green-800 mb-1">분류 자동 생성</p>
+                <p className="text-xs text-green-700 leading-relaxed">
+                  시트명(대분류)이나 자산명(소분류)이 자산분류에 없는 경우 <strong>업로드 시 자동으로 생성</strong>됩니다.
+                  기존 분류와 정확히 일치하면 해당 분류로 등록됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 커스텀 필드 자동 추가 */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-amber-800 mb-1">커스텀 필드 자동 추가</p>
+                <p className="text-xs text-amber-700 leading-relaxed mb-2">
+                  <strong>식별번호 뒤에 컬럼을 추가</strong>하면 해당 대분류에 커스텀 필드가 자동 생성되고 값이 저장됩니다.
+                  이미 존재하는 필드명이면 기존 필드를 그대로 사용합니다.
+                </p>
+                <div className="bg-amber-100 rounded-lg px-3 py-2 font-mono text-xs text-amber-900">
+                  자산명 | 부서명 | 팀명 | 관리자 | 품명 | 식별번호 |{' '}
+                  <span className="text-indigo-700 font-bold">구매일자 | 제조사 | 보증기간</span>
+                  <span className="block mt-1 text-amber-600 font-sans not-italic">
+                    ↑ 식별번호 뒤 컬럼 → 커스텀 필드 자동 생성
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
