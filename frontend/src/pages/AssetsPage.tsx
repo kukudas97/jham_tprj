@@ -135,6 +135,7 @@ const AssetsPage: React.FC = () => {
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -150,8 +151,8 @@ const AssetsPage: React.FC = () => {
 
   useEffect(() => { fetchAll(); }, []);
 
-  // 필터 변경 시 선택 초기화
-  useEffect(() => { setSelectedPids(new Set()); }, [search, filterCategoryPid]);
+  // 필터 변경 시 선택 및 페이지 초기화
+  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
   const openEdit = (asset: Asset) => { setEditing(asset); setShowModal(true); };
@@ -186,9 +187,19 @@ const AssetsPage: React.FC = () => {
     return matchSearch && matchCategory;
   });
 
+  const PAGE_SIZE = 20;
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageNumbers = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    if (page <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
+    if (page >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    return [1, '...', page - 1, page, page + 1, '...', totalPages];
+  })();
+
   const selectedAssets = filtered.filter((a) => selectedPids.has(a.pid));
-  const isAllSelected = filtered.length > 0 && filtered.every((a) => selectedPids.has(a.pid));
-  const isIndeterminate = !isAllSelected && filtered.some((a) => selectedPids.has(a.pid));
+  const isAllSelected = paginated.length > 0 && paginated.every((a) => selectedPids.has(a.pid));
+  const isIndeterminate = !isAllSelected && paginated.some((a) => selectedPids.has(a.pid));
 
   useEffect(() => {
     if (allCheckboxRef.current) allCheckboxRef.current.indeterminate = isIndeterminate;
@@ -204,8 +215,11 @@ const AssetsPage: React.FC = () => {
   };
 
   const toggleSelectAll = () => {
-    if (isAllSelected) setSelectedPids(new Set());
-    else setSelectedPids(new Set(filtered.map((a) => a.pid)));
+    if (isAllSelected) {
+      setSelectedPids((prev) => { const next = new Set(prev); paginated.forEach((a) => next.delete(a.pid)); return next; });
+    } else {
+      setSelectedPids((prev) => { const next = new Set(prev); paginated.forEach((a) => next.add(a.pid)); return next; });
+    }
   };
 
   // 선택된 항목이 있으면 선택 기준, 없으면 필터 기준으로 처리
@@ -421,7 +435,7 @@ const AssetsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map((asset) => {
+                  {paginated.map((asset) => {
                     const isChecked = selectedPids.has(asset.pid);
                     return (
                       <tr
@@ -492,9 +506,40 @@ const AssetsPage: React.FC = () => {
               </table>
             </div>
 
+            {/* 페이지네이션 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-1 mt-3">
+                <p className="text-xs text-gray-500">
+                  총 {filtered.length}개 중 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}개
+                </p>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setPage(1)} disabled={page === 1}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">«</button>
+                  <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">‹</button>
+                  {pageNumbers.map((n, i) =>
+                    n === '...' ? (
+                      <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm">…</span>
+                    ) : (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setPage(n as number)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${page === n ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                      >{n}</button>
+                    )
+                  )}
+                  <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">›</button>
+                  <button type="button" onClick={() => setPage(totalPages)} disabled={page === totalPages}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">»</button>
+                </div>
+              </div>
+            )}
+
             {/* 모바일 카드 목록 */}
             <div className="md:hidden space-y-2">
-              {filtered.map((asset) => {
+              {paginated.map((asset) => {
                 const isChecked = selectedPids.has(asset.pid);
                 return (
                   <div
