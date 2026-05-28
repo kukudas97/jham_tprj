@@ -3,7 +3,6 @@
 use axum::extract::Multipart;
 use calamine::{open_workbook_from_rs, Data, DataType, Reader, Xlsx};
 use loco_rs::prelude::*;
-use std::collections::HashMap;
 use std::io::Cursor;
 
 use crate::models::asset_categories;
@@ -13,6 +12,13 @@ use crate::models::assets;
 use crate::models::category_field_defs;
 use crate::models::users;
 use crate::views::asset_upload::AssetUploadResponse;
+
+// Excel 업로드 양식
+// 시트명 = 대분류 (없으면 자동 생성)
+// 컬럼: 자산명(필수) 부서명(필수) 팀명 관리자 품명(필수) 식별번호(필수) [추가컬럼...]
+//   자산명 → 소분류 조회/자동생성, 품명 → assets.name, 식별번호 → serial_number,
+//   부서명 → location, 팀명/관리자 → 커스텀 필드 조회/저장,
+//   식별번호 이후 컬럼 → 커스텀 필드 자동 생성 후 저장
 
 #[debug_handler]
 pub async fn upload(
@@ -71,6 +77,103 @@ async fn parse_and_insert(
     }
 }
 
+/// 대분류 찾기 or 자동 생성 (캐시 갱신 포함)
+async fn find_or_create_parent(
+    db: &sea_orm::DatabaseConnection,
+    cache: &mut Vec<asset_categories::Model>,
+    name: &str,
+    company_id: i32,
+) -> Result<asset_categories::Model, String> {
+    if let Some(existing) = cache
+        .iter()
+        .find(|c| c.parent_id.is_none() && c.name == name)
+    {
+        return Ok(existing.clone());
+    }
+    let new_cat = asset_categories::ActiveModel {
+        name: Set(name.to_string()),
+        company_id: Set(company_id),
+        parent_id: Set(None),
+        require_serial_number: Set(false),
+        require_location: Set(false),
+        require_note: Set(false),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .map_err(|e| format!("대분류 '{}' 생성 실패: {}", name, e))?;
+    tracing::info!(name, "대분류 자동 생성");
+    cache.push(new_cat.clone());
+    Ok(new_cat)
+}
+
+/// 소분류 찾기 or 자동 생성 (캐시 갱신 포함)
+async fn find_or_create_child(
+    db: &sea_orm::DatabaseConnection,
+    cache: &mut Vec<asset_categories::Model>,
+    children: &mut Vec<asset_categories::Model>,
+    name: &str,
+    parent: &asset_categories::Model,
+    company_id: i32,
+) -> Result<asset_categories::Model, String> {
+    if let Some(existing) = children.iter().find(|c| c.name == name) {
+        return Ok(existing.clone());
+    }
+    let new_sub = asset_categories::ActiveModel {
+        name: Set(name.to_string()),
+        company_id: Set(company_id),
+        parent_id: Set(Some(parent.id)),
+        require_serial_number: Set(false),
+        require_location: Set(false),
+        require_note: Set(false),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .map_err(|e| format!("소분류 '{}' 생성 실패: {}", name, e))?;
+    tracing::info!(name, parent = %parent.name, "소분류 자동 생성");
+    cache.push(new_sub.clone());
+    children.push(new_sub.clone());
+    Ok(new_sub)
+}
+
+/// 커스텀 필드 찾기 or 자동 생성 (캐시 갱신 포함)
+async fn find_or_create_field_def(
+    db: &sea_orm::DatabaseConnection,
+    defs_cache: &mut Vec<category_field_defs::Model>,
+    label: &str,
+    parent_cat: &asset_categories::Model,
+    company_id: i32,
+) -> Result<category_field_defs::Model, String> {
+    if let Some(existing) = defs_cache
+        .iter()
+        .find(|d| d.category_id == parent_cat.id && (d.field_label == label || d.field_name == label))
+    {
+        return Ok(existing.clone());
+    }
+    let max_order = defs_cache
+        .iter()
+        .filter(|d| d.category_id == parent_cat.id)
+        .map(|d| d.sort_order)
+        .max()
+        .unwrap_or(-1);
+    let new_def = category_field_defs::ActiveModel {
+        category_id: Set(parent_cat.id),
+        company_id: Set(company_id),
+        field_name: Set(label.to_string()),
+        field_label: Set(label.to_string()),
+        is_required: Set(false),
+        sort_order: Set(max_order + 1),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .map_err(|e| format!("커스텀 필드 '{}' 생성 실패: {}", label, e))?;
+    tracing::info!(label, "커스텀 필드 자동 생성");
+    defs_cache.push(new_def.clone());
+    Ok(new_def)
+}
+
 async fn do_parse_and_insert(
     db: &sea_orm::DatabaseConnection,
     bytes: &[u8],
@@ -80,36 +183,19 @@ async fn do_parse_and_insert(
     let mut workbook: Xlsx<_> =
         open_workbook_from_rs(cursor).map_err(|e| format!("xlsx 파싱 실패: {}", e))?;
 
-    let sheet_name = workbook
-        .sheet_names()
-        .first()
-        .cloned()
-        .ok_or_else(|| "시트가 없습니다.".to_string())?;
+    let sheet_names = workbook.sheet_names().to_vec();
+    if sheet_names.is_empty() {
+        return Err("시트가 없습니다.".to_string());
+    }
 
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|e| format!("시트 읽기 실패: {}", e))?;
+    // 변경 가능한 캐시로 로드 (자동 생성 항목 즉시 반영)
+    let mut all_categories = asset_categories::Model::find_all_by_company(db, company_id)
+        .await
+        .map_err(|e| format!("분류 조회 실패: {}", e))?;
 
-    let mut rows = range.rows();
-
-    let header = rows
-        .next()
-        .ok_or_else(|| "헤더 행이 없습니다.".to_string())?;
-
-    let col_index = |name: &str| -> Option<usize> {
-        header.iter().position(|c| {
-            DataType::get_string(c)
-                .map(|s| s.eq_ignore_ascii_case(name))
-                .unwrap_or(false)
-        })
-    };
-
-    let name_col = col_index("name").ok_or_else(|| "name 컬럼이 없습니다.".to_string())?;
-    let serial_col = col_index("serial_number");
-    let location_col = col_index("location");
-    let note_col = col_index("note");
-    let category_col = col_index("category");
-    let sub_category_col = col_index("sub_category");
+    let mut all_defs = category_field_defs::Model::find_by_company(db, company_id)
+        .await
+        .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
 
     let get_str = |row: &[Data], idx: Option<usize>| -> Option<String> {
         idx.and_then(|i| row.get(i)).and_then(|v| {
@@ -118,160 +204,175 @@ async fn do_parse_and_insert(
         })
     };
 
-    // pre-load all categories for this company
-    let all_categories = asset_categories::Model::find_all_by_company(db, company_id)
-        .await
-        .map_err(|e| format!("분류 조회 실패: {}", e))?;
+    // 고정 컬럼 이름 집합 (식별번호 이후 추가 컬럼 판별용)
+    const FIXED_COLS: &[&str] = &["자산명", "부서명", "팀명", "관리자", "품명", "식별번호"];
 
-    // pre-load all field defs for this company
-    let all_defs = category_field_defs::Model::find_by_company(db, company_id)
-        .await
-        .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
+    let mut total_count = 0usize;
 
-    // build map: category_id → Vec<(field_name, is_required, def_id, col_idx_in_header)>
-    // field column index in header (by field_name)
-    let header_names: Vec<String> = header
-        .iter()
-        .map(|c| DataType::get_string(c).unwrap_or("").trim().to_lowercase())
-        .collect();
+    for sheet_name in &sheet_names {
+        // 대분류: 없으면 자동 생성
+        let parent_cat =
+            find_or_create_parent(db, &mut all_categories, sheet_name, company_id).await?;
 
-    // group field defs by category_id
-    let mut field_defs_by_cat: HashMap<i32, Vec<&category_field_defs::Model>> = HashMap::new();
-    for def in &all_defs {
-        field_defs_by_cat.entry(def.category_id).or_default().push(def);
-    }
+        let range = workbook
+            .worksheet_range(sheet_name)
+            .map_err(|e| format!("'{}' 시트 읽기 실패: {}", sheet_name, e))?;
 
-    // for each field def, find its column index in the header
-    let def_col_map: HashMap<i32, Option<usize>> = all_defs
-        .iter()
-        .map(|def| {
-            let idx = header_names
-                .iter()
-                .position(|h| h == &def.field_name.to_lowercase());
-            (def.id, idx)
-        })
-        .collect();
-
-    let mut count = 0usize;
-    for (row_idx, row) in rows.enumerate() {
-        let row_num = row_idx + 2;
-
-        let name = match row.get(name_col).and_then(|v| DataType::get_string(v)) {
-            Some(s) if !s.trim().is_empty() => s.trim().to_string(),
-            _ => continue,
+        let mut rows = range.rows();
+        let header = match rows.next() {
+            Some(h) => h,
+            None => continue,
         };
 
-        let category_name = get_str(row, category_col);
-        let sub_category_name = get_str(row, sub_category_col);
+        // 컬럼 인덱스 조회
+        let col_index = |name: &str| -> Option<usize> {
+            header.iter().position(|c| {
+                DataType::get_string(c)
+                    .map(|s| s.trim() == name)
+                    .unwrap_or(false)
+            })
+        };
 
-        let category_name = category_name.ok_or_else(|| {
-            format!("{}행: category(대분류) 값이 없습니다.", row_num)
-        })?;
+        let asset_name_col = col_index("자산명")
+            .ok_or_else(|| format!("'{}' 시트: '자산명' 컬럼이 없습니다.", sheet_name))?;
+        let product_name_col = col_index("품명")
+            .ok_or_else(|| format!("'{}' 시트: '품명' 컬럼이 없습니다.", sheet_name))?;
+        let id_num_col = col_index("식별번호")
+            .ok_or_else(|| format!("'{}' 시트: '식별번호' 컬럼이 없습니다.", sheet_name))?;
+        let dept_col = col_index("부서명")
+            .ok_or_else(|| format!("'{}' 시트: '부서명' 컬럼이 없습니다.", sheet_name))?;
+        let team_col = col_index("팀명");
+        let manager_col = col_index("관리자");
 
-        let parent_cat = all_categories
+        // 식별번호 이후 추가 컬럼 → 커스텀 필드 자동 생성
+        let extra_cols: Vec<(usize, String)> = header
             .iter()
-            .find(|c| c.parent_id.is_none() && c.name == category_name)
-            .ok_or_else(|| {
-                format!("{}행: 대분류 '{}'을(를) 찾을 수 없습니다.", row_num, category_name)
-            })?;
-
-        let children: Vec<_> = all_categories
-            .iter()
-            .filter(|c| c.parent_id == Some(parent_cat.id))
+            .enumerate()
+            .filter(|(i, _)| *i > id_num_col)
+            .filter_map(|(i, c)| {
+                DataType::get_string(c)
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty() && !FIXED_COLS.contains(&s.as_str()))
+                    .map(|s| (i, s))
+            })
             .collect();
 
-        let assigned_cat = if !children.is_empty() {
-            let sub_name = sub_category_name.ok_or_else(|| {
-                format!(
-                    "{}행: 대분류 '{}'은(는) 소분류가 필요합니다. sub_category 값이 없습니다.",
-                    row_num, category_name
-                )
+        // 추가 컬럼에 대한 커스텀 필드 찾기/생성
+        let mut extra_field_defs: Vec<(usize, category_field_defs::Model)> = Vec::new();
+        for (col_idx, col_label) in &extra_cols {
+            let def = find_or_create_field_def(
+                db,
+                &mut all_defs,
+                col_label,
+                &parent_cat,
+                company_id,
+            )
+            .await?;
+            extra_field_defs.push((*col_idx, def));
+        }
+
+        // 소분류 캐시 (시트 내에서 새로 생성된 것도 반영)
+        let mut children: Vec<asset_categories::Model> = all_categories
+            .iter()
+            .filter(|c| c.parent_id == Some(parent_cat.id))
+            .cloned()
+            .collect();
+
+        for (row_idx, row) in rows.enumerate() {
+            let row_num = row_idx + 2;
+
+            // 품명(필수) - 빈 행 건너뜀
+            let product_name = match get_str(row, Some(product_name_col)) {
+                Some(v) => v,
+                None => continue,
+            };
+
+            // 자산명(필수) → 소분류 찾기/생성
+            let asset_name_val = get_str(row, Some(asset_name_col)).ok_or_else(|| {
+                format!("'{}' 시트 {}행: '자산명'이 없습니다.", sheet_name, row_num)
             })?;
-            children
-                .iter()
-                .find(|c| c.name == sub_name)
-                .ok_or_else(|| {
-                    format!("{}행: 소분류 '{}'을(를) 찾을 수 없습니다.", row_num, sub_name)
-                })?
-        } else {
-            parent_cat
-        };
 
-        let serial_number = get_str(row, serial_col);
-        let location = get_str(row, location_col);
-        let note = get_str(row, note_col);
+            let assigned_cat = find_or_create_child(
+                db,
+                &mut all_categories,
+                &mut children,
+                &asset_name_val,
+                &parent_cat,
+                company_id,
+            )
+            .await?;
 
-        if parent_cat.require_serial_number && serial_number.is_none() {
-            return Err(format!(
-                "{}행: '{}' 분류는 serial_number(시리얼 번호)가 필수입니다.",
-                row_num, category_name
-            ));
-        }
-        if parent_cat.require_location && location.is_none() {
-            return Err(format!(
-                "{}행: '{}' 분류는 location(위치)이 필수입니다.",
-                row_num, category_name
-            ));
-        }
-        if parent_cat.require_note && note.is_none() {
-            return Err(format!(
-                "{}행: '{}' 분류는 note(비고)가 필수입니다.",
-                row_num, category_name
-            ));
-        }
+            // 식별번호(필수)
+            let id_number = get_str(row, Some(id_num_col)).ok_or_else(|| {
+                format!("'{}' 시트 {}행: '식별번호'가 없습니다.", sheet_name, row_num)
+            })?;
 
-        // validate custom field required fields
-        if let Some(defs) = field_defs_by_cat.get(&parent_cat.id) {
-            for def in defs {
-                if def.is_required {
-                    let col_idx = def_col_map.get(&def.id).and_then(|v| *v);
-                    let val = get_str(row, col_idx);
-                    if val.is_none() {
-                        return Err(format!(
-                            "{}행: '{}' 분류는 {}({})이 필수입니다.",
-                            row_num, category_name, def.field_name, def.field_label
-                        ));
+            // 부서명(필수)
+            let dept_name = get_str(row, Some(dept_col)).ok_or_else(|| {
+                format!("'{}' 시트 {}행: '부서명'이 없습니다.", sheet_name, row_num)
+            })?;
+
+            let asset = assets::ActiveModel {
+                name: Set(product_name),
+                company_id: Set(company_id),
+                serial_number: Set(Some(id_number)),
+                location: Set(Some(dept_name)),
+                note: Set(None),
+                category_id: Set(Some(assigned_cat.id)),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .map_err(|e| format!("DB 저장 실패: {}", e))?;
+
+            // 팀명, 관리자 → 커스텀 필드 찾기/저장
+            for (val_opt, label) in [
+                (get_str(row, team_col), "팀명"),
+                (get_str(row, manager_col), "관리자"),
+            ] {
+                if let Some(val) = val_opt {
+                    // 이미 존재하는 필드 찾기 (없으면 자동 생성하지 않음 - 선택 항목이므로)
+                    if let Some(def) = all_defs.iter().find(|d| {
+                        d.category_id == parent_cat.id
+                            && (d.field_label == label || d.field_name == label)
+                    }) {
+                        asset_field_values::ActiveModel {
+                            asset_id: Set(asset.id),
+                            field_def_id: Set(def.id),
+                            value: Set(Some(val)),
+                            ..Default::default()
+                        }
+                        .insert(db)
+                        .await
+                        .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
                     }
                 }
             }
-        }
 
-        let asset = assets::ActiveModel {
-            name: Set(name),
-            company_id: Set(company_id),
-            serial_number: Set(serial_number),
-            location: Set(location),
-            note: Set(note),
-            category_id: Set(Some(assigned_cat.id)),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(|e| format!("DB 인서트 실패: {}", e))?;
-
-        // save custom field values
-        if let Some(defs) = field_defs_by_cat.get(&parent_cat.id) {
-            for def in defs {
-                let col_idx = def_col_map.get(&def.id).and_then(|v| *v);
-                let val = get_str(row, col_idx);
-                if let Some(v) = val {
+            // 식별번호 이후 추가 컬럼 → 커스텀 필드 값 저장
+            for (col_idx, field_def) in &extra_field_defs {
+                if let Some(val) = get_str(row, Some(*col_idx)) {
                     asset_field_values::ActiveModel {
                         asset_id: Set(asset.id),
-                        field_def_id: Set(def.id),
-                        value: Set(Some(v)),
+                        field_def_id: Set(field_def.id),
+                        value: Set(Some(val)),
                         ..Default::default()
                     }
                     .insert(db)
                     .await
-                    .map_err(|e| format!("커스텀 필드 인서트 실패: {}", e))?;
+                    .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
                 }
             }
-        }
 
-        count += 1;
+            total_count += 1;
+        }
     }
 
-    Ok(count)
+    if total_count == 0 {
+        return Err("등록된 자산이 없습니다. 필수 컬럼(자산명, 부서명, 품명, 식별번호)과 데이터를 확인하세요.".to_string());
+    }
+
+    Ok(total_count)
 }
 
 pub fn routes() -> Routes {

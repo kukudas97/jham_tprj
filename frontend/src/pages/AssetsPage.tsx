@@ -1,10 +1,119 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
 import type { Asset, Category } from '../api/types';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
+import LabelPrintModal from '../components/LabelPrintModal';
+import { printLabels } from '../utils/printLabels';
+
+async function exportExcel(assets: Asset[], categories: Category[]) {
+  const ExcelJS = (await import('exceljs')).default;
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'JHAM';
+  workbook.created = new Date();
+
+  const HEADER_COLOR = '4F46E5';
+  const ALT_ROW_COLOR = 'F5F5FF';
+  const BORDER = { style: 'thin' as const, color: { argb: 'FFDDDDDD' } };
+
+  for (const parent of categories) {
+    const catAssets = assets.filter(
+      (a) => a.category_pid === parent.pid || parent.children.some((ch) => ch.pid === a.category_pid),
+    );
+    if (catAssets.length === 0) continue;
+
+    const sheet = workbook.addWorksheet(parent.name.slice(0, 31));
+    sheet.columns = [
+      { key: 'idx', width: 6 },
+      { key: 'name', width: 22 },
+      { key: 'sub', width: 14 },
+      { key: 'serial', width: 20 },
+      { key: 'location', width: 16 },
+      { key: 'note', width: 22 },
+      { key: 'qr', width: 13 },
+    ];
+
+    const headers = ['순번', '자산명', '소분류', '시리얼번호', '위치', '비고', 'QR코드'];
+    const headerRow = sheet.addRow(headers);
+    headerRow.height = 22;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${HEADER_COLOR}` } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = { bottom: BORDER, right: BORDER };
+    });
+
+    const ROW_HEIGHT = 72;
+
+    for (const [i, asset] of catAssets.entries()) {
+      const rowNum = i + 2;
+      const row = sheet.addRow([
+        i + 1,
+        asset.name,
+        asset.category_name ?? '',
+        asset.serial_number ?? '',
+        asset.location ?? '',
+        asset.note ?? '',
+        '',
+      ]);
+      row.height = ROW_HEIGHT;
+
+      if (i % 2 === 1) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${ALT_ROW_COLOR}` } };
+        });
+      }
+
+      row.eachCell((cell, col) => {
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: col === 1 ? 'center' : 'left',
+          wrapText: col === 6,
+        };
+        cell.border = { bottom: BORDER, right: BORDER };
+      });
+
+      try {
+        const imgRes = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
+        if (!imgRes.ok) {
+          await assetsApi.getQr(asset.pid);
+          const retry = await fetch(`/api/qr_codes/image/${asset.pid}.png`);
+          if (!retry.ok) continue;
+          const buf = await retry.arrayBuffer();
+          const imgId = workbook.addImage({ buffer: buf, extension: 'png' });
+          sheet.addImage(imgId, {
+            tl: { col: 6, row: rowNum - 1 } as { col: number; row: number },
+            ext: { width: 68, height: 68 },
+          });
+        } else {
+          const buf = await imgRes.arrayBuffer();
+          const imgId = workbook.addImage({ buffer: buf, extension: 'png' });
+          sheet.addImage(imgId, {
+            tl: { col: 6, row: rowNum - 1 } as { col: number; row: number },
+            ext: { width: 68, height: 68 },
+          });
+        }
+      } catch {
+        // skip image on error
+      }
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `자산목록_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 const AssetsPage: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -14,6 +123,11 @@ const AssetsPage: React.FC = () => {
   const [filterCategoryPid, setFilterCategoryPid] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
+  const allCheckboxRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const fetchAll = async () => {
@@ -28,12 +142,23 @@ const AssetsPage: React.FC = () => {
 
   useEffect(() => { fetchAll(); }, []);
 
+  // 필터 변경 시 선택 초기화
+  useEffect(() => { setSelectedPids(new Set()); }, [search, filterCategoryPid]);
+
   const openCreate = () => { setEditing(null); setShowModal(true); };
   const openEdit = (asset: Asset) => { setEditing(asset); setShowModal(true); };
 
   const handleDelete = async (pid: string) => {
     if (!confirm('이 자산을 삭제하시겠습니까?')) return;
     await assetsApi.remove(pid);
+    fetchAll();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPids.size === 0) return;
+    if (!confirm(`선택한 ${selectedPids.size}개의 자산을 삭제하시겠습니까?`)) return;
+    await Promise.all([...selectedPids].map((pid) => assetsApi.remove(pid)));
+    setSelectedPids(new Set());
     fetchAll();
   };
 
@@ -53,6 +178,31 @@ const AssetsPage: React.FC = () => {
     return matchSearch && matchCategory;
   });
 
+  const selectedAssets = filtered.filter((a) => selectedPids.has(a.pid));
+  const isAllSelected = filtered.length > 0 && filtered.every((a) => selectedPids.has(a.pid));
+  const isIndeterminate = !isAllSelected && filtered.some((a) => selectedPids.has(a.pid));
+
+  useEffect(() => {
+    if (allCheckboxRef.current) allCheckboxRef.current.indeterminate = isIndeterminate;
+  }, [isIndeterminate]);
+
+  const toggleSelect = (pid: string) => {
+    setSelectedPids((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) setSelectedPids(new Set());
+    else setSelectedPids(new Set(filtered.map((a) => a.pid)));
+  };
+
+  // 선택된 항목이 있으면 선택 기준, 없으면 필터 기준으로 처리
+  const targetAssets = selectedPids.size > 0 ? selectedAssets : filtered;
+
   const getCategoryLabel = (asset: Asset) => {
     if (!asset.category_name) return null;
     const parent = categories.find((c) => c.children.some((ch) => ch.pid === asset.category_pid));
@@ -70,17 +220,81 @@ const AssetsPage: React.FC = () => {
             <h2 className="text-xl font-bold text-gray-900">자산 목록</h2>
             <p className="text-sm text-gray-500 mt-0.5">등록된 모든 자산을 조회하고 관리합니다</p>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm flex-shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span className="hidden sm:inline">자산 등록</span>
-            <span className="sm:hidden">등록</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* 선택 삭제 버튼 */}
+            {selectedPids.size > 0 && (
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-sm font-medium rounded-xl hover:bg-red-100 transition-colors shadow-sm"
+                title={`선택한 ${selectedPids.size}개 삭제`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>{selectedPids.size}개 삭제</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                setExporting(true);
+                try { await exportExcel(targetAssets, categories); } finally { setExporting(false); }
+              }}
+              disabled={exporting || loading || targetAssets.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors shadow-sm"
+              title={selectedPids.size > 0
+                ? `선택한 ${selectedPids.size}개 엑셀 다운로드`
+                : '전체 필터 결과 엑셀 다운로드'}
+            >
+              {exporting ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">{exporting ? '생성 중...' : 'Excel'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLabelModal(true)}
+              disabled={loading || targetAssets.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors shadow-sm"
+              title={selectedPids.size > 0
+                ? `선택한 ${selectedPids.size}개 라벨 인쇄`
+                : '전체 필터 결과 라벨 인쇄'}
+            >
+              {printing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">라벨</span>
+            </button>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">자산 등록</span>
+              <span className="sm:hidden">등록</span>
+            </button>
+          </div>
         </div>
 
         {/* 통계 카드 */}
@@ -135,6 +349,20 @@ const AssetsPage: React.FC = () => {
           </select>
         </div>
 
+        {/* 선택 상태 표시 */}
+        {selectedPids.size > 0 && (
+          <div className="mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm">
+            <span className="text-indigo-700 font-medium">{selectedPids.size}개 선택됨</span>
+            <button
+              type="button"
+              onClick={() => setSelectedPids(new Set())}
+              className="text-indigo-500 hover:text-indigo-700 text-xs underline"
+            >
+              선택 해제
+            </button>
+          </div>
+        )}
+
         {/* 테이블 (md 이상) / 카드 목록 (모바일) */}
         {loading ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center h-48">
@@ -166,6 +394,15 @@ const AssetsPage: React.FC = () => {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50/80 border-b border-gray-200">
                   <tr>
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        ref={allCheckboxRef}
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">자산명</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">분류</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">시리얼</th>
@@ -175,120 +412,149 @@ const AssetsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map((asset) => (
-                    <tr key={asset.pid} className="hover:bg-indigo-50/30 transition-colors group">
-                      <td className="px-5 py-3.5">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/assets/${asset.pid}`)}
-                          className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline text-left"
-                        >
-                          {asset.name}
-                        </button>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {getCategoryLabel(asset) ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                            {getCategoryLabel(asset)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.location ?? '-'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 max-w-xs truncate hidden lg:table-cell">{asset.note ?? '-'}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {filtered.map((asset) => {
+                    const isChecked = selectedPids.has(asset.pid);
+                    return (
+                      <tr
+                        key={asset.pid}
+                        className={`hover:bg-indigo-50/30 transition-colors group ${isChecked ? 'bg-indigo-50/50' : ''}`}
+                      >
+                        <td className="px-4 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelect(asset.pid)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-5 py-3.5">
                           <button
                             type="button"
-                            onClick={() => openEdit(asset)}
-                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="수정"
+                            onClick={() => navigate(`/assets/${asset.pid}`)}
+                            className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline text-left"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            {asset.name}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(asset.pid)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="삭제"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {getCategoryLabel(asset) ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {getCategoryLabel(asset)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.location ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 max-w-xs truncate hidden lg:table-cell">{asset.note ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(asset)}
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="수정"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(asset.pid)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="삭제"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* 모바일 카드 목록 */}
             <div className="md:hidden space-y-2">
-              {filtered.map((asset) => (
-                <div key={asset.pid} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/assets/${asset.pid}`)}
-                      className="font-semibold text-gray-900 text-left hover:text-indigo-600 transition-colors flex-1"
-                    >
-                      {asset.name}
-                    </button>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(asset)}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(asset.pid)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+              {filtered.map((asset) => {
+                const isChecked = selectedPids.has(asset.pid);
+                return (
+                  <div
+                    key={asset.pid}
+                    className={`bg-white rounded-xl border shadow-sm p-4 ${isChecked ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200'}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelect(asset.pid)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5 flex-shrink-0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/assets/${asset.pid}`)}
+                          className="font-semibold text-gray-900 text-left hover:text-indigo-600 transition-colors flex-1 min-w-0 truncate"
+                        >
+                          {asset.name}
+                        </button>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(asset)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(asset.pid)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 pl-7">
+                      {getCategoryLabel(asset) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {getCategoryLabel(asset)}
+                        </span>
+                      )}
+                      {asset.serial_number && (
+                        <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded">
+                          {asset.serial_number}
+                        </span>
+                      )}
+                      {asset.location && (
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          {asset.location}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {getCategoryLabel(asset) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        {getCategoryLabel(asset)}
-                      </span>
-                    )}
-                    {asset.serial_number && (
-                      <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded">
-                        {asset.serial_number}
-                      </span>
-                    )}
-                    {asset.location && (
-                      <span className="text-xs text-gray-500 flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {asset.location}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -300,6 +566,22 @@ const AssetsPage: React.FC = () => {
           categories={categories}
           onClose={() => setShowModal(false)}
           onSave={() => { setShowModal(false); fetchAll(); }}
+        />
+      )}
+
+      {showLabelModal && (
+        <LabelPrintModal
+          printing={printing}
+          onClose={() => setShowLabelModal(false)}
+          onPrint={async (logoDataUrl) => {
+            setPrinting(true);
+            try {
+              await printLabels(targetAssets, categories, logoDataUrl);
+              setShowLabelModal(false);
+            } finally {
+              setPrinting(false);
+            }
+          }}
         />
       )}
     </Layout>
