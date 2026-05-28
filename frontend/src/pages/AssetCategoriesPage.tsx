@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as categoriesApi from '../api/categories';
 import * as assetsApi from '../api/assets';
@@ -299,6 +299,8 @@ const AssetCategoriesPage: React.FC = () => {
   const [editRequired, setEditRequired] = useState<RequiredFieldsState>(emptyRequired());
   const [saving, setSaving] = useState(false);
   const [fieldModalCat, setFieldModalCat] = useState<Category | null>(null);
+  const [collapsedPids, setCollapsedPids] = useState<Set<string>>(new Set());
+  const [allAssets, setAllAssets] = useState<Asset[]>([]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -310,6 +312,24 @@ const AssetCategoriesPage: React.FC = () => {
   }, []);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { assetsApi.list().then(setAllAssets); }, []);
+
+  const toggleCollapse = (pid: string) => {
+    setCollapsedPids((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  const assetCountByPid = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of allAssets) {
+      if (a.category_pid) map[a.category_pid] = (map[a.category_pid] ?? 0) + 1;
+    }
+    return map;
+  }, [allAssets]);
 
   const fetchAssets = useCallback(async (catPid: string) => {
     setAssetsLoading(true);
@@ -422,7 +442,7 @@ const AssetCategoriesPage: React.FC = () => {
     <Layout>
       <div className="p-6 flex gap-6 h-full">
         {/* 왼쪽: 분류 트리 */}
-        <div className="w-80 flex-shrink-0 flex flex-col gap-4">
+        <div className="w-80 flex-shrink-0 flex flex-col gap-4 min-h-0">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900">자산 분류</h2>
             <button
@@ -455,7 +475,7 @@ const AssetCategoriesPage: React.FC = () => {
             </form>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-y-auto flex-1">
             {loading ? (
               <div className="p-4 text-sm text-gray-400 text-center">불러오는 중...</div>
             ) : categories.length === 0 ? (
@@ -486,30 +506,46 @@ const AssetCategoriesPage: React.FC = () => {
                         </form>
                       ) : (
                         <>
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleSelectCategory(cat.pid)}
-                              className={`text-left text-sm font-semibold ${selectedPid === cat.pid ? 'text-blue-700' : 'text-gray-800'}`}
+                              onClick={() => toggleCollapse(cat.pid)}
+                              className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
                             >
-                              {cat.name}
-                              <span className="ml-1.5 text-xs font-normal text-gray-400">({cat.children.length})</span>
+                              <svg
+                                className={`w-3.5 h-3.5 transition-transform ${collapsedPids.has(cat.pid) ? '' : 'rotate-90'}`}
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
                             </button>
-                            <div className="flex gap-1 mt-0.5 flex-wrap">
-                              {cat.required_fields?.serial_number && (
-                                <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">시리얼*</span>
-                              )}
-                              {cat.required_fields?.location && (
-                                <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">위치*</span>
-                              )}
-                              {cat.required_fields?.note && (
-                                <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">비고*</span>
-                              )}
-                              {cat.field_defs?.length > 0 && (
-                                <span className="text-xs px-1 py-0.5 bg-purple-50 text-purple-600 rounded">
-                                  커스텀 {cat.field_defs.length}개
+                            <div className="flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectCategory(cat.pid)}
+                                className={`text-left text-sm font-semibold ${selectedPid === cat.pid ? 'text-blue-700' : 'text-gray-800'}`}
+                              >
+                                {cat.name}
+                                <span className="ml-1.5 text-xs font-normal text-gray-400">
+                                  ({cat.children.reduce((s, ch) => s + (assetCountByPid[ch.pid] ?? 0), 0)})
                                 </span>
-                              )}
+                              </button>
+                              <div className="flex gap-1 mt-0.5 flex-wrap">
+                                {cat.required_fields?.serial_number && (
+                                  <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">시리얼*</span>
+                                )}
+                                {cat.required_fields?.location && (
+                                  <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">위치*</span>
+                                )}
+                                {cat.required_fields?.note && (
+                                  <span className="text-xs px-1 py-0.5 bg-orange-50 text-orange-600 rounded">비고*</span>
+                                )}
+                                {cat.field_defs?.length > 0 && (
+                                  <span className="text-xs px-1 py-0.5 bg-purple-50 text-purple-600 rounded">
+                                    커스텀 {cat.field_defs.length}개
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="hidden group-hover:flex items-center gap-1 ml-2">
@@ -527,7 +563,7 @@ const AssetCategoriesPage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => { setShowAddChild(cat.pid); setNewName(''); }}
+                              onClick={() => { setShowAddChild(cat.pid); setNewName(''); if (collapsedPids.has(cat.pid)) toggleCollapse(cat.pid); }}
                               className="p-1 text-gray-400 hover:text-blue-600 rounded"
                               title="소분류 추가"
                             >
@@ -560,78 +596,84 @@ const AssetCategoriesPage: React.FC = () => {
                       )}
                     </div>
 
-                    {/* 소분류 추가 폼 */}
-                    {showAddChild === cat.pid && (
-                      <form
-                        onSubmit={(e) => handleAddChild(e, cat.pid)}
-                        className="bg-blue-50 px-3 py-2 flex gap-2"
-                      >
-                        <input
-                          autoFocus
-                          type="text"
-                          value={newName}
-                          onChange={(e) => setNewName(e.target.value)}
-                          placeholder="소분류 이름"
-                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                        <button type="submit" disabled={saving} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50">추가</button>
-                        <button type="button" onClick={() => setShowAddChild(null)} className="px-2 py-1 border border-gray-300 text-xs rounded">취소</button>
-                      </form>
-                    )}
-
-                    {/* 소분류 목록 */}
-                    {cat.children.map((child) => (
-                      <div
-                        key={child.pid}
-                        className={`flex items-center justify-between pl-6 pr-3 py-2 group ${selectedPid === child.pid ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                      >
-                        {editingPid === child.pid ? (
-                          <form onSubmit={(e) => handleUpdate(e, child.pid, false)} className="flex-1 flex gap-1 mr-1">
+                    {/* 소분류 추가 폼 + 소분류 목록 (접힘 제어) */}
+                    {!collapsedPids.has(cat.pid) && (
+                      <>
+                        {showAddChild === cat.pid && (
+                          <form
+                            onSubmit={(e) => handleAddChild(e, cat.pid)}
+                            className="bg-blue-50 px-3 py-2 flex gap-2"
+                          >
                             <input
                               autoFocus
                               type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
+                              value={newName}
+                              onChange={(e) => setNewName(e.target.value)}
+                              placeholder="소분류 이름"
                               className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
-                            <button type="submit" disabled={saving} className="px-2 py-1 bg-blue-600 text-white text-xs rounded">저장</button>
-                            <button type="button" onClick={() => setEditingPid(null)} className="px-2 py-1 border border-gray-300 text-xs rounded">취소</button>
+                            <button type="submit" disabled={saving} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50">추가</button>
+                            <button type="button" onClick={() => setShowAddChild(null)} className="px-2 py-1 border border-gray-300 text-xs rounded">취소</button>
                           </form>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleSelectCategory(child.pid)}
-                              className={`flex-1 text-left text-sm ${selectedPid === child.pid ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
-                            >
-                              ↳ {child.name}
-                            </button>
-                            <div className="hidden group-hover:flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => startEdit(child, false)}
-                                className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                                title="이름 수정"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(child.pid, child.name)}
-                                className="p-1 text-gray-400 hover:text-red-600 rounded"
-                                title="삭제"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                          </>
                         )}
-                      </div>
-                    ))}
+
+                        {cat.children.map((child) => (
+                          <div
+                            key={child.pid}
+                            className={`flex items-center justify-between pl-6 pr-3 py-2 group ${selectedPid === child.pid ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                          >
+                            {editingPid === child.pid ? (
+                              <form onSubmit={(e) => handleUpdate(e, child.pid, false)} className="flex-1 flex gap-1 mr-1">
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <button type="submit" disabled={saving} className="px-2 py-1 bg-blue-600 text-white text-xs rounded">저장</button>
+                                <button type="button" onClick={() => setEditingPid(null)} className="px-2 py-1 border border-gray-300 text-xs rounded">취소</button>
+                              </form>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectCategory(child.pid)}
+                                  className={`flex-1 text-left text-sm ${selectedPid === child.pid ? 'text-blue-600 font-medium' : 'text-gray-600'}`}
+                                >
+                                  ↳ {child.name}
+                                  <span className="ml-1.5 text-xs font-normal text-gray-400">
+                                    ({assetCountByPid[child.pid] ?? 0})
+                                  </span>
+                                </button>
+                                <div className="hidden group-hover:flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(child, false)}
+                                    className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                                    title="이름 수정"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(child.pid, child.name)}
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded"
+                                    title="삭제"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
