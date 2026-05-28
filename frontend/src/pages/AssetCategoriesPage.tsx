@@ -713,6 +713,7 @@ const AssetCategoriesPage: React.FC = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10">No.</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">품명</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">식별번호</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">부서명</th>
@@ -721,8 +722,9 @@ const AssetCategoriesPage: React.FC = () => {
                     </tr>
                   </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {assetsInCategory.map((asset) => (
+                  {assetsInCategory.map((asset, idx) => (
                     <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-3 text-center text-xs text-gray-400">{idx + 1}</td>
                       <td className="px-4 py-3">
                         <button
                           type="button"

@@ -425,6 +425,7 @@ const AssetsPage: React.FC = () => {
                         className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       />
                     </th>
+                    <th className="text-center px-3 py-3.5 text-xs font-semibold text-gray-400 w-10">No.</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">품명</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">분류</th>
                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">식별번호</th>
@@ -435,7 +436,7 @@ const AssetsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {paginated.map((asset) => {
+                  {paginated.map((asset, idx) => {
                     const isChecked = selectedPids.has(asset.pid);
                     return (
                       <tr
@@ -451,6 +452,7 @@ const AssetsPage: React.FC = () => {
                             className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                           />
                         </td>
+                        <td className="px-3 py-3.5 text-center text-xs text-gray-400">{(page - 1) * pageSize + idx + 1}</td>
                         <td className="px-5 py-3.5">
                           <button
                             type="button"
