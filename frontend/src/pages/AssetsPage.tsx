@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
@@ -137,6 +137,8 @@ const AssetsPage: React.FC = () => {
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [filterDept, setFilterDept] = useState('');
+  const [filterTeam, setFilterTeam] = useState('');
   const allCheckboxRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -153,7 +155,7 @@ const AssetsPage: React.FC = () => {
   useEffect(() => { fetchAll(); }, []);
 
   // 필터 변경 시 선택 및 페이지 초기화
-  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid]);
+  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid, filterDept, filterTeam]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
   const openEdit = (asset: Asset) => { setEditing(asset); setShowModal(true); };
@@ -172,6 +174,9 @@ const AssetsPage: React.FC = () => {
     fetchAll();
   };
 
+  const getFieldValue = (asset: Asset, label: string) =>
+    asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
+
   const filterPids = (() => {
     if (!filterCategoryPid) return null;
     const parent = categories.find((c) => c.pid === filterCategoryPid);
@@ -179,13 +184,26 @@ const AssetsPage: React.FC = () => {
     return [filterCategoryPid];
   })();
 
+  const deptOptions = useMemo(
+    () => [...new Set(assets.map((a) => a.location ?? '').filter(Boolean))].sort(),
+    [assets],
+  );
+  const teamOptions = useMemo(
+    () => [...new Set(assets.map((a) => getFieldValue(a, '팀명') ?? '').filter(Boolean))].sort(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [assets],
+  );
+
   const filtered = assets.filter((a) => {
+    const q = search.toLowerCase();
     const matchSearch =
-      a.name.toLowerCase().includes(search.toLowerCase()) ||
-      (a.serial_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (a.location ?? '').toLowerCase().includes(search.toLowerCase());
+      a.name.toLowerCase().includes(q) ||
+      (a.serial_number ?? '').toLowerCase().includes(q) ||
+      (getFieldValue(a, '관리자') ?? '').toLowerCase().includes(q);
     const matchCategory = !filterPids || filterPids.includes(a.category_pid ?? '');
-    return matchSearch && matchCategory;
+    const matchDept = !filterDept || (a.location ?? '') === filterDept;
+    const matchTeam = !filterTeam || (getFieldValue(a, '팀명') ?? '') === filterTeam;
+    return matchSearch && matchCategory && matchDept && matchTeam;
   });
 
   const totalPages = Math.ceil(filtered.length / pageSize);
@@ -230,9 +248,6 @@ const AssetsPage: React.FC = () => {
     const parent = categories.find((c) => c.children.some((ch) => ch.pid === asset.category_pid));
     return parent ? `${parent.name} > ${asset.category_name}` : asset.category_name;
   };
-
-  const getFieldValue = (asset: Asset, label: string) =>
-    asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
 
   const categorizedCount = assets.filter((a) => a.category_pid).length;
 
@@ -348,7 +363,7 @@ const AssetsPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="품명, 식별번호, 부서명 검색..."
+              placeholder="품명, 식별번호, 관리자 검색..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
             />
           </div>
@@ -367,6 +382,26 @@ const AssetsPage: React.FC = () => {
                   </option>
                 ))}
               </optgroup>
+            ))}
+          </select>
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
+          >
+            <option value="">전체 부서</option>
+            {deptOptions.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <select
+            value={filterTeam}
+            onChange={(e) => setFilterTeam(e.target.value)}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
+          >
+            <option value="">전체 팀</option>
+            {teamOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>

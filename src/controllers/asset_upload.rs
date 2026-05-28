@@ -3,6 +3,7 @@
 use axum::extract::Multipart;
 use calamine::{open_workbook_from_rs, Data, DataType, Reader, Xlsx};
 use loco_rs::prelude::*;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::io::Cursor;
 
 use crate::models::asset_categories;
@@ -174,6 +175,55 @@ async fn find_or_create_field_def(
     Ok(new_def)
 }
 
+/// serial_number로 기존 자산 조회 (soft-delete 제외)
+async fn find_asset_by_serial(
+    db: &sea_orm::DatabaseConnection,
+    serial_number: &str,
+    company_id: i32,
+) -> Result<Option<assets::Model>, String> {
+    use crate::models::_entities::assets::Column as AssetCol;
+    assets::Entity::find()
+        .filter(AssetCol::SerialNumber.eq(serial_number))
+        .filter(AssetCol::CompanyId.eq(company_id))
+        .filter(AssetCol::DeletedAt.is_null())
+        .one(db)
+        .await
+        .map_err(|e| format!("자산 조회 실패: {}", e))
+}
+
+/// (asset_id, field_def_id) 기준으로 필드값 upsert
+async fn upsert_field_value(
+    db: &sea_orm::DatabaseConnection,
+    asset_id: i32,
+    field_def_id: i32,
+    val: String,
+) -> Result<(), String> {
+    use crate::models::_entities::asset_field_values::Column as FvCol;
+    let existing = asset_field_values::Entity::find()
+        .filter(FvCol::AssetId.eq(asset_id))
+        .filter(FvCol::FieldDefId.eq(field_def_id))
+        .one(db)
+        .await
+        .map_err(|e| format!("필드값 조회 실패: {}", e))?;
+
+    if let Some(existing) = existing {
+        let mut active: asset_field_values::ActiveModel = existing.into();
+        active.value = Set(Some(val));
+        active.update(db).await.map_err(|e| format!("필드값 업데이트 실패: {}", e))?;
+    } else {
+        asset_field_values::ActiveModel {
+            asset_id: Set(asset_id),
+            field_def_id: Set(field_def_id),
+            value: Set(Some(val)),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
+    }
+    Ok(())
+}
+
 async fn do_parse_and_insert(
     db: &sea_orm::DatabaseConnection,
     bytes: &[u8],
@@ -324,20 +374,30 @@ async fn do_parse_and_insert(
                 format!("'{}' 시트 {}행: '부서명'이 없습니다.", sheet_name, row_num)
             })?;
 
-            let asset = assets::ActiveModel {
-                name: Set(product_name),
-                company_id: Set(company_id),
-                serial_number: Set(Some(id_number)),
-                location: Set(Some(dept_name)),
-                note: Set(None),
-                category_id: Set(Some(assigned_cat.id)),
-                ..Default::default()
-            }
-            .insert(db)
-            .await
-            .map_err(|e| format!("DB 저장 실패: {}", e))?;
+            // 동일 식별번호 자산 조회 → 있으면 업데이트, 없으면 신규 등록
+            let asset =
+                if let Some(existing) = find_asset_by_serial(db, &id_number, company_id).await? {
+                    let mut active: assets::ActiveModel = existing.into();
+                    active.name = Set(product_name);
+                    active.location = Set(Some(dept_name));
+                    active.category_id = Set(Some(assigned_cat.id));
+                    active.update(db).await.map_err(|e| format!("DB 업데이트 실패: {}", e))?
+                } else {
+                    assets::ActiveModel {
+                        name: Set(product_name),
+                        company_id: Set(company_id),
+                        serial_number: Set(Some(id_number)),
+                        location: Set(Some(dept_name)),
+                        note: Set(None),
+                        category_id: Set(Some(assigned_cat.id)),
+                        ..Default::default()
+                    }
+                    .insert(db)
+                    .await
+                    .map_err(|e| format!("DB 저장 실패: {}", e))?
+                };
 
-            // 팀명, 관리자 → 커스텀 필드 자동 생성 후 저장
+            // 팀명, 관리자 → 커스텀 필드 자동 생성 후 upsert
             for (val_opt, label) in [
                 (get_str(row, team_col), "팀명"),
                 (get_str(row, manager_col), "관리자"),
@@ -351,30 +411,14 @@ async fn do_parse_and_insert(
                         company_id,
                     )
                     .await?;
-                    asset_field_values::ActiveModel {
-                        asset_id: Set(asset.id),
-                        field_def_id: Set(def.id),
-                        value: Set(Some(val)),
-                        ..Default::default()
-                    }
-                    .insert(db)
-                    .await
-                    .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
+                    upsert_field_value(db, asset.id, def.id, val).await?;
                 }
             }
 
-            // 식별번호 이후 추가 컬럼 → 커스텀 필드 값 저장
+            // 식별번호 이후 추가 컬럼 → 커스텀 필드 값 upsert
             for (col_idx, field_def) in &extra_field_defs {
                 if let Some(val) = get_str(row, Some(*col_idx)) {
-                    asset_field_values::ActiveModel {
-                        asset_id: Set(asset.id),
-                        field_def_id: Set(field_def.id),
-                        value: Set(Some(val)),
-                        ..Default::default()
-                    }
-                    .insert(db)
-                    .await
-                    .map_err(|e| format!("커스텀 필드 저장 실패: {}", e))?;
+                    upsert_field_value(db, asset.id, field_def.id, val).await?;
                 }
             }
 
