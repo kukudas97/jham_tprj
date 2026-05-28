@@ -682,7 +682,7 @@ const AssetCategoriesPage: React.FC = () => {
         </div>
 
         {/* 오른쪽: 선택된 분류의 자산 목록 */}
-        <div className="flex-1 flex flex-col gap-4">
+        <div className="flex-1 flex flex-col gap-4 min-h-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">
               {selectedCategory ? `"${selectedCategory.name}" 자산 목록` : '분류를 선택하세요'}
@@ -692,7 +692,7 @@ const AssetCategoriesPage: React.FC = () => {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1 flex flex-col">
             {!selectedPid ? (
               <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                 왼쪽에서 분류를 선택하면 해당 자산이 표시됩니다
@@ -706,15 +706,16 @@ const AssetCategoriesPage: React.FC = () => {
                 이 분류에 자산이 없습니다
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">자산명</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">시리얼</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">위치</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">비고</th>
-                  </tr>
-                </thead>
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">자산명</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">시리얼</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">위치</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">비고</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-gray-100">
                   {assetsInCategory.map((asset) => (
                     <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
@@ -733,7 +734,8 @@ const AssetCategoriesPage: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </div>
         </div>
