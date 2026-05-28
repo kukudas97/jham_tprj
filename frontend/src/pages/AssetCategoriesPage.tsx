@@ -710,10 +710,9 @@ const AssetCategoriesPage: React.FC = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">자산명</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">시리얼</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">위치</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">비고</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">품명</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">식별번호</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">부서명</th>
                     </tr>
                   </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -730,7 +729,6 @@ const AssetCategoriesPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-gray-500">{asset.serial_number ?? '-'}</td>
                       <td className="px-4 py-3 text-gray-500">{asset.location ?? '-'}</td>
-                      <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{asset.note ?? '-'}</td>
                     </tr>
                   ))}
                 </tbody>

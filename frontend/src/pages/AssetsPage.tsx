@@ -334,7 +334,7 @@ const AssetsPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="이름, 시리얼, 위치 검색..."
+              placeholder="품명, 식별번호, 부서명 검색..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
             />
           </div>
