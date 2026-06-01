@@ -193,7 +193,9 @@ const AssetsPage: React.FC = () => {
   })();
 
   const teamOptions = useMemo(
-    () => departments.find((d) => d.pid === filterDeptPid)?.teams ?? [],
+    () => filterDeptPid
+      ? (departments.find((d) => d.pid === filterDeptPid)?.teams ?? [])
+      : departments.flatMap((d) => d.teams),
     [departments, filterDeptPid],
   );
 
@@ -447,8 +449,7 @@ const AssetsPage: React.FC = () => {
           <select
             value={filterTeamPid}
             onChange={(e) => setFilterTeamPid(e.target.value)}
-            disabled={!filterDeptPid || teamOptions.length === 0}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
           >
             <option value="">전체 팀</option>
             {teamOptions.map((t) => (
