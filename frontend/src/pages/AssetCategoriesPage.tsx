@@ -438,6 +438,13 @@ const AssetCategoriesPage: React.FC = () => {
   const selectedCategory = categories.find((c) => c.pid === selectedPid)
     || categories.flatMap((c) => c.children).find((c) => c.pid === selectedPid);
 
+  // 선택된 분류의 대분류(field_defs 보유)
+  const parentCategory = selectedPid
+    ? (categories.find((c) => c.pid === selectedPid)
+       ?? categories.find((c) => c.children.some((ch) => ch.pid === selectedPid)))
+    : null;
+  const customFieldDefs = parentCategory?.field_defs ?? [];
+
   const getFieldValue = (asset: Asset, label: string) =>
     asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
 
@@ -717,30 +724,36 @@ const AssetCategoriesPage: React.FC = () => {
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">품명</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">식별번호</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">부서명</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">팀명</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">관리자</th>
+                      {customFieldDefs.map((def) => (
+                        <th key={def.pid} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {def.field_label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {assetsInCategory.map((asset, idx) => (
-                    <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-3 py-3 text-center text-xs text-gray-400">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/assets/${asset.pid}`)}
-                          className="font-medium text-blue-700 hover:underline"
-                        >
-                          {asset.name}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                      <td className="px-4 py-3 text-gray-500">{asset.location ?? '-'}</td>
-                      <td className="px-4 py-3 text-gray-500">{getFieldValue(asset, '팀명') ?? '-'}</td>
-                      <td className="px-4 py-3 text-gray-500">{getFieldValue(asset, '관리자') ?? '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                  <tbody className="divide-y divide-gray-100">
+                    {assetsInCategory.map((asset, idx) => (
+                      <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-3 text-center text-xs text-gray-400">{idx + 1}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/assets/${asset.pid}`)}
+                            className="font-medium text-blue-700 hover:underline"
+                          >
+                            {asset.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{asset.location ?? '-'}</td>
+                        {customFieldDefs.map((def) => (
+                          <td key={def.pid} className="px-4 py-3 text-gray-500">
+                            {getFieldValue(asset, def.field_label) ?? '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             )}
