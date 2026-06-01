@@ -139,6 +139,7 @@ const AssetsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [filterDept, setFilterDept] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -206,8 +207,34 @@ const AssetsPage: React.FC = () => {
     return matchSearch && matchCategory && matchDept && matchTeam;
   });
 
+  const sorted = useMemo(() => {
+    if (!sortConfig) return filtered;
+    return [...filtered].sort((a, b) => {
+      let av = '';
+      let bv = '';
+      if (sortConfig.key === 'name') { av = a.name; bv = b.name; }
+      else if (sortConfig.key === 'category') {
+        const label = (x: Asset) => {
+          if (!x.category_name) return '';
+          const p = categories.find((c) => c.children.some((ch) => ch.pid === x.category_pid));
+          return p ? `${p.name} > ${x.category_name}` : x.category_name;
+        };
+        av = label(a); bv = label(b);
+      }
+      else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
+      else if (sortConfig.key === 'location') { av = a.location ?? ''; bv = b.location ?? ''; }
+      else {
+        const fv = (x: Asset) =>
+          x.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
+        av = fv(a); bv = fv(b);
+      }
+      const cmp = av.localeCompare(bv, 'ko');
+      return sortConfig.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [filtered, sortConfig, categories]);
+
   const totalPages = Math.ceil(filtered.length / pageSize);
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     if (page <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
@@ -238,6 +265,23 @@ const AssetsPage: React.FC = () => {
     } else {
       setSelectedPids((prev) => { const next = new Set(prev); paginated.forEach((a) => next.add(a.pid)); return next; });
     }
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) =>
+      prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
+    );
+    setPage(1);
+  };
+
+  const sortIcon = (key: string) => {
+    const active = sortConfig?.key === key;
+    const dir = sortConfig?.dir ?? 'asc';
+    return (
+      <span className={`ml-1 text-xs ${active ? 'text-indigo-400' : 'text-gray-300'}`}>
+        {active ? (dir === 'asc' ? '▲' : '▼') : '⇅'}
+      </span>
+    );
   };
 
   // 선택된 항목이 있으면 선택 기준, 없으면 필터 기준으로 처리
@@ -461,12 +505,24 @@ const AssetsPage: React.FC = () => {
                       />
                     </th>
                     <th className="text-center px-3 py-3.5 text-xs font-semibold text-gray-400 w-10">No.</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">품명</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">분류</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">식별번호</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">부서명</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">팀명</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">관리자</th>
+                    {[
+                      { key: 'name', label: '품명', cls: '' },
+                      { key: 'category', label: '분류', cls: '' },
+                      { key: 'serial', label: '식별번호', cls: '' },
+                      { key: 'location', label: '부서명', cls: 'hidden lg:table-cell' },
+                      { key: '팀명', label: '팀명', cls: 'hidden lg:table-cell' },
+                      { key: '관리자', label: '관리자', cls: 'hidden lg:table-cell' },
+                    ].map(({ key, label, cls }) => (
+                      <th
+                        key={key}
+                        onClick={() => handleSort(key)}
+                        className={`text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors ${cls}`}
+                      >
+                        <span className="flex items-center gap-0.5">
+                          {label}{sortIcon(key)}
+                        </span>
+                      </th>
+                    ))}
                     <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">동작</th>
                   </tr>
                 </thead>

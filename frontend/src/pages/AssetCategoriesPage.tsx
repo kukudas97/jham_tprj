@@ -301,6 +301,7 @@ const AssetCategoriesPage: React.FC = () => {
   const [fieldModalCat, setFieldModalCat] = useState<Category | null>(null);
   const [collapsedPids, setCollapsedPids] = useState<Set<string>>(new Set());
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const initialCollapseDone = React.useRef(false);
 
   const fetchCategories = useCallback(async () => {
@@ -349,7 +350,7 @@ const AssetCategoriesPage: React.FC = () => {
 
   const handleSelectCategory = (pid: string) => {
     setSelectedPid(pid);
-    // 대분류 선택 시 모든 하위 분류 자산 포함
+    setSortConfig(null); // 분류 변경 시 정렬 초기화
     const parent = categories.find((c) => c.pid === pid);
     if (parent) {
       fetchAssets([pid, ...parent.children.map((ch) => ch.pid)]);
@@ -459,6 +460,39 @@ const AssetCategoriesPage: React.FC = () => {
 
   const getFieldValue = (asset: Asset, label: string) =>
     asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) =>
+      prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
+    );
+  };
+
+  const sortIcon = (key: string) => {
+    const active = sortConfig?.key === key;
+    const dir = sortConfig?.dir ?? 'asc';
+    return (
+      <span className={`ml-1 text-xs ${active ? 'text-blue-500' : 'text-gray-300'}`}>
+        {active ? (dir === 'asc' ? '▲' : '▼') : '⇅'}
+      </span>
+    );
+  };
+
+  const sortedAssets = useMemo(() => {
+    if (!sortConfig) return assetsInCategory;
+    return [...assetsInCategory].sort((a, b) => {
+      let av = '';
+      let bv = '';
+      if (sortConfig.key === 'name') { av = a.name; bv = b.name; }
+      else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
+      else if (sortConfig.key === 'location') { av = a.location ?? ''; bv = b.location ?? ''; }
+      else {
+        av = a.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
+        bv = b.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
+      }
+      const cmp = av.localeCompare(bv, 'ko');
+      return sortConfig.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [assetsInCategory, sortConfig]);
 
   return (
     <Layout>
@@ -733,18 +767,32 @@ const AssetCategoriesPage: React.FC = () => {
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
                       <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10">No.</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">품명</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">식별번호</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">부서명</th>
+                      {[
+                        { key: 'name', label: '품명' },
+                        { key: 'serial', label: '식별번호' },
+                        { key: 'location', label: '부서명' },
+                      ].map(({ key, label }) => (
+                        <th
+                          key={key}
+                          onClick={() => handleSort(key)}
+                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-0.5">{label}{sortIcon(key)}</span>
+                        </th>
+                      ))}
                       {customFieldDefs.map((def) => (
-                        <th key={def.pid} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          {def.field_label}
+                        <th
+                          key={def.pid}
+                          onClick={() => handleSort(def.field_label)}
+                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-0.5">{def.field_label}{sortIcon(def.field_label)}</span>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {assetsInCategory.map((asset, idx) => (
+                    {sortedAssets.map((asset, idx) => (
                       <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
                         <td className="px-3 py-3 text-center text-xs text-gray-400">{idx + 1}</td>
                         <td className="px-4 py-3">
