@@ -27,7 +27,7 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
     if (catAssets.length === 0) continue;
 
     const fieldDefs = parent.field_defs ?? [];
-    const qrColNum = 5 + fieldDefs.length + 1; // 1-indexed (순번~부서명=5 + 커스텀 + QR)
+    const qrColNum = 5 + fieldDefs.length + 1;
 
     const sheet = workbook.addWorksheet(parent.name.slice(0, 31));
     sheet.columns = [
@@ -123,13 +123,100 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
   URL.revokeObjectURL(url);
 }
 
+interface SelectOption {
+  value: string;
+  label: string;
+  indent?: boolean;
+}
+
+const MultiSelectDropdown: React.FC<{
+  options: SelectOption[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+  placeholder: string;
+}> = ({ options, selected, onChange, placeholder }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  };
+
+  const buttonLabel = selected.length === 0 ? placeholder : `${placeholder} (${selected.length})`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-2.5 border rounded-xl text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+          selected.length > 0
+            ? 'border-indigo-400 text-indigo-700 bg-indigo-50/30'
+            : 'border-gray-200 text-gray-600'
+        }`}
+      >
+        <span className="whitespace-nowrap">{buttonLabel}</span>
+        <svg
+          className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 min-w-full w-max max-w-xs bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
+          {selected.length > 0 && (
+            <div className="px-3 py-1.5 border-b border-gray-100">
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-xs text-indigo-500 hover:text-indigo-700"
+              >
+                전체 해제
+              </button>
+            </div>
+          )}
+          {options.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-indigo-50 cursor-pointer text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(opt.value)}
+                onChange={() => toggle(opt.value)}
+                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+              />
+              <span className={opt.indent ? 'text-gray-500 pl-2' : 'text-gray-700'}>
+                {opt.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AssetsPage: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterCategoryPid, setFilterCategoryPid] = useState('');
+  const [filterCategoryPids, setFilterCategoryPids] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -139,8 +226,8 @@ const AssetsPage: React.FC = () => {
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [filterDeptPid, setFilterDeptPid] = useState('');
-  const [filterTeamPid, setFilterTeamPid] = useState('');
+  const [filterDeptPids, setFilterDeptPids] = useState<string[]>([]);
+  const [filterTeamPids, setFilterTeamPids] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(null);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
@@ -163,7 +250,21 @@ const AssetsPage: React.FC = () => {
   useEffect(() => { fetchAll(); }, []);
 
   // 필터 변경 시 선택 및 페이지 초기화
-  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid, filterDeptPid, filterTeamPid]);
+  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPids, filterDeptPids, filterTeamPids]);
+
+  // 부서 필터 변경 시 유효하지 않은 팀 선택 제거
+  useEffect(() => {
+    if (filterDeptPids.length === 0) return;
+    const validTeamPids = new Set(
+      departments
+        .filter((d) => filterDeptPids.includes(d.pid))
+        .flatMap((d) => d.teams.map((t) => t.pid)),
+    );
+    setFilterTeamPids((prev) => {
+      const next = prev.filter((pid) => validTeamPids.has(pid));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [filterDeptPids, departments]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
   const openEdit = (asset: Asset) => { setEditing(asset); setShowModal(true); };
@@ -185,18 +286,45 @@ const AssetsPage: React.FC = () => {
   const getFieldValue = (asset: Asset, label: string) =>
     asset.field_values?.find((fv) => fv.field_label === label || fv.field_name === label)?.value ?? null;
 
-  const filterPids = (() => {
-    if (!filterCategoryPid) return null;
-    const parent = categories.find((c) => c.pid === filterCategoryPid);
-    if (parent) return [parent.pid, ...parent.children.map((c) => c.pid)];
-    return [filterCategoryPid];
-  })();
+  // 선택된 분류에 해당하는 모든 category_pid 집합
+  const filterCategoryPidSet = useMemo(() => {
+    if (filterCategoryPids.length === 0) return null;
+    const result = new Set<string>();
+    for (const pid of filterCategoryPids) {
+      const parent = categories.find((c) => c.pid === pid);
+      if (parent) {
+        result.add(parent.pid);
+        parent.children.forEach((c) => result.add(c.pid));
+      } else {
+        result.add(pid);
+      }
+    }
+    return result;
+  }, [filterCategoryPids, categories]);
 
   const teamOptions = useMemo(
-    () => filterDeptPid
-      ? (departments.find((d) => d.pid === filterDeptPid)?.teams ?? [])
+    () => filterDeptPids.length > 0
+      ? departments.filter((d) => filterDeptPids.includes(d.pid)).flatMap((d) => d.teams)
       : departments.flatMap((d) => d.teams),
-    [departments, filterDeptPid],
+    [departments, filterDeptPids],
+  );
+
+  const categoryOptions = useMemo(
+    () => categories.flatMap((cat) => [
+      { value: cat.pid, label: `${cat.name} (전체)`, indent: false },
+      ...cat.children.map((child) => ({ value: child.pid, label: `↳ ${child.name}`, indent: true })),
+    ]),
+    [categories],
+  );
+
+  const deptOptions = useMemo(
+    () => departments.map((d) => ({ value: d.pid, label: d.name, indent: false })),
+    [departments],
+  );
+
+  const teamSelectOptions = useMemo(
+    () => teamOptions.map((t) => ({ value: t.pid, label: t.name, indent: false })),
+    [teamOptions],
   );
 
   const filtered = assets.filter((a) => {
@@ -205,9 +333,9 @@ const AssetsPage: React.FC = () => {
       a.name.toLowerCase().includes(q) ||
       (a.serial_number ?? '').toLowerCase().includes(q) ||
       (a.manager_name ?? '').toLowerCase().includes(q);
-    const matchCategory = !filterPids || filterPids.includes(a.category_pid ?? '');
-    const matchDept = !filterDeptPid || a.department_pid === filterDeptPid;
-    const matchTeam = !filterTeamPid || a.team_pid === filterTeamPid;
+    const matchCategory = !filterCategoryPidSet || filterCategoryPidSet.has(a.category_pid ?? '');
+    const matchDept = filterDeptPids.length === 0 || filterDeptPids.includes(a.department_pid ?? '');
+    const matchTeam = filterTeamPids.length === 0 || filterTeamPids.includes(a.team_pid ?? '');
     return matchSearch && matchCategory && matchDept && matchTeam;
   });
 
@@ -302,6 +430,7 @@ const AssetsPage: React.FC = () => {
   };
 
   const categorizedCount = assets.filter((a) => a.category_pid).length;
+  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0;
 
   return (
     <Layout>
@@ -405,8 +534,8 @@ const AssetsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 검색 + 분류 필터 */}
-        <div className="mb-4 flex flex-col sm:flex-row gap-2">
+        {/* 검색 + 필터 */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -419,43 +548,37 @@ const AssetsPage: React.FC = () => {
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
             />
           </div>
-          <select
-            value={filterCategoryPid}
-            onChange={(e) => setFilterCategoryPid(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
-          >
-            <option value="">전체 분류</option>
-            {categories.map((cat) => (
-              <optgroup key={cat.pid} label={cat.name}>
-                <option value={cat.pid}>{cat.name} (전체)</option>
-                {cat.children.map((child) => (
-                  <option key={child.pid} value={child.pid}>
-                    &nbsp;&nbsp;↳ {child.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <select
-            value={filterDeptPid}
-            onChange={(e) => { setFilterDeptPid(e.target.value); setFilterTeamPid(''); }}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
-          >
-            <option value="">전체 부서</option>
-            {departments.map((d) => (
-              <option key={d.pid} value={d.pid}>{d.name}</option>
-            ))}
-          </select>
-          <select
-            value={filterTeamPid}
-            onChange={(e) => setFilterTeamPid(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
-          >
-            <option value="">전체 팀</option>
-            {teamOptions.map((t) => (
-              <option key={t.pid} value={t.pid}>{t.name}</option>
-            ))}
-          </select>
+          <MultiSelectDropdown
+            options={categoryOptions}
+            selected={filterCategoryPids}
+            onChange={setFilterCategoryPids}
+            placeholder="전체 분류"
+          />
+          <MultiSelectDropdown
+            options={deptOptions}
+            selected={filterDeptPids}
+            onChange={setFilterDeptPids}
+            placeholder="전체 부서"
+          />
+          <MultiSelectDropdown
+            options={teamSelectOptions}
+            selected={filterTeamPids}
+            onChange={setFilterTeamPids}
+            placeholder="전체 팀"
+          />
+          {(hasFilter) && (
+            <button
+              type="button"
+              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); }}
+              className="flex items-center gap-1 px-3 py-2.5 text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              title="필터 초기화"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span className="hidden sm:inline text-xs">필터 초기화</span>
+            </button>
+          )}
         </div>
 
         {/* 선택 상태 표시 */}
@@ -493,7 +616,7 @@ const AssetsPage: React.FC = () => {
             </div>
             <p className="text-sm font-medium text-gray-500">자산이 없습니다</p>
             <p className="text-xs text-gray-400 mt-1">
-              {search || filterCategoryPid ? '검색 조건을 변경해 보세요' : '자산 등록 버튼을 눌러 첫 자산을 추가하세요'}
+              {search || hasFilter ? '검색 조건을 변경해 보세요' : '자산 등록 버튼을 눌러 첫 자산을 추가하세요'}
             </p>
           </div>
         ) : (
