@@ -241,25 +241,6 @@ async fn do_parse_and_insert(
         return Err("시트가 없습니다.".to_string());
     }
 
-    // 변경 가능한 캐시로 로드 (자동 생성 항목 즉시 반영)
-    let mut all_categories = asset_categories::Model::find_all_by_company(db, company_id)
-        .await
-        .map_err(|e| format!("분류 조회 실패: {}", e))?;
-
-    let mut all_defs = category_field_defs::Model::find_by_company(db, company_id)
-        .await
-        .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
-
-    let mut dept_cache: Vec<departments::Model> =
-        departments::Model::find_all_active_by_company(db, company_id)
-            .await
-            .map_err(|e| format!("부서 조회 실패: {}", e))?;
-
-    let mut team_cache: Vec<teams::Model> =
-        teams::Model::find_all_active_by_company(db, company_id)
-            .await
-            .map_err(|e| format!("팀 조회 실패: {}", e))?;
-
     let get_str = |row: &[Data], idx: Option<usize>| -> Option<String> {
         idx.and_then(|i| row.get(i)).and_then(|v| {
             let s = match v {
@@ -278,6 +259,98 @@ async fn do_parse_and_insert(
             if s.is_empty() { None } else { Some(s) }
         })
     };
+
+    // ── Pass 1: 필수값 사전 검증 (DB 삽입 전 전체 오류 수집) ────────────────
+    let mut validation_errors: Vec<String> = Vec::new();
+
+    for sheet_name in &sheet_names {
+        let range = workbook
+            .worksheet_range(sheet_name)
+            .map_err(|e| format!("'{}' 시트 읽기 실패: {}", sheet_name, e))?;
+
+        let mut rows = range.rows();
+        let header = match rows.next() {
+            Some(h) => h,
+            None => continue,
+        };
+
+        let col_idx = |name: &str| -> Option<usize> {
+            header.iter().position(|c| {
+                DataType::get_string(c).map(|s| s.trim() == name).unwrap_or(false)
+            })
+        };
+
+        let v_product = col_idx("품명");
+        let v_asset = col_idx("자산명");
+        let v_dept = col_idx("부서명");
+        let v_id = col_idx("식별번호");
+
+        // 필수 컬럼 존재 여부 확인
+        for (col_opt, label) in [(v_product, "품명"), (v_asset, "자산명"), (v_dept, "부서명"), (v_id, "식별번호")] {
+            if col_opt.is_none() {
+                validation_errors.push(format!("'{}' 시트: '{}' 컬럼이 없습니다.", sheet_name, label));
+            }
+        }
+        // 컬럼 자체가 없으면 행 검증 불필요
+        if v_product.is_none() || v_asset.is_none() || v_dept.is_none() || v_id.is_none() {
+            continue;
+        }
+
+        for (row_idx, row) in rows.enumerate() {
+            let row_num = row_idx + 2;
+            let pn = get_str(row, v_product);
+            let an = get_str(row, v_asset);
+            let dn = get_str(row, v_dept);
+            let id = get_str(row, v_id);
+
+            // 4개 필수값 모두 비어있으면 빈 행 → 스킵
+            if pn.is_none() && an.is_none() && dn.is_none() && id.is_none() {
+                continue;
+            }
+            // 하나라도 값이 있으면 나머지 필수값도 있어야 함
+            if pn.is_none() {
+                validation_errors.push(format!("'{}' 시트 {}행: '품명'이 없습니다.", sheet_name, row_num));
+            }
+            if an.is_none() {
+                validation_errors.push(format!("'{}' 시트 {}행: '자산명'이 없습니다.", sheet_name, row_num));
+            }
+            if dn.is_none() {
+                validation_errors.push(format!("'{}' 시트 {}행: '부서명'이 없습니다.", sheet_name, row_num));
+            }
+            if id.is_none() {
+                validation_errors.push(format!("'{}' 시트 {}행: '식별번호'가 없습니다.", sheet_name, row_num));
+            }
+        }
+    }
+
+    if !validation_errors.is_empty() {
+        return Err(format!(
+            "필수값 누락 오류 ({}건):\n{}",
+            validation_errors.len(),
+            validation_errors.join("\n")
+        ));
+    }
+
+    // ── Pass 2: 캐시 로드 후 실제 DB 삽입 ──────────────────────────────────
+
+    // 변경 가능한 캐시로 로드 (자동 생성 항목 즉시 반영)
+    let mut all_categories = asset_categories::Model::find_all_by_company(db, company_id)
+        .await
+        .map_err(|e| format!("분류 조회 실패: {}", e))?;
+
+    let mut all_defs = category_field_defs::Model::find_by_company(db, company_id)
+        .await
+        .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
+
+    let mut dept_cache: Vec<departments::Model> =
+        departments::Model::find_all_active_by_company(db, company_id)
+            .await
+            .map_err(|e| format!("부서 조회 실패: {}", e))?;
+
+    let mut team_cache: Vec<teams::Model> =
+        teams::Model::find_all_active_by_company(db, company_id)
+            .await
+            .map_err(|e| format!("팀 조회 실패: {}", e))?;
 
     // 고정 컬럼 이름 집합 (식별번호 이후 추가 컬럼 판별용)
     const FIXED_COLS: &[&str] = &["자산명", "부서명", "팀명", "관리자", "품명", "식별번호"];

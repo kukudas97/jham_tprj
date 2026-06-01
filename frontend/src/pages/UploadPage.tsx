@@ -291,7 +291,7 @@ const UploadPage: React.FC = () => {
             </div>
             <p className="text-xs text-gray-600">파일: {result.filename}</p>
             {result.error_message && (
-              <p className="text-xs text-red-600 mt-1">{result.error_message}</p>
+              <p className="text-xs text-red-600 mt-1 whitespace-pre-line">{result.error_message}</p>
             )}
           </div>
         )}
