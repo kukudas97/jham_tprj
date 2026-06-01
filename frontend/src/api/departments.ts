@@ -2,10 +2,10 @@ import client from './client';
 import type { Department, Team } from './types';
 
 export const list = (): Promise<Department[]> =>
-  client.get<Department[]>('/departments/').then((r) => r.data);
+  client.get<Department[]>('/departments').then((r) => r.data);
 
 export const create = (name: string): Promise<Department> =>
-  client.post<Department>('/departments/', { name }).then((r) => r.data);
+  client.post<Department>('/departments', { name }).then((r) => r.data);
 
 export const update = (pid: string, name: string): Promise<Department> =>
   client.put<Department>(`/departments/${pid}`, { name }).then((r) => r.data);

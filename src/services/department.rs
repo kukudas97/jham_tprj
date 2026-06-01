@@ -1,4 +1,6 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter, Set,
+};
 
 use crate::models::departments;
 use crate::models::teams;
@@ -73,6 +75,8 @@ pub async fn find_or_create_team(
 
 /// 기존 자산의 location(부서명) / 팀명 커스텀 필드를 읽어
 /// departments / teams 테이블을 채우고 assets.department_id / team_id를 매핑.
+/// - department_id IS NULL : 부서 미연결 → 부서(+팀) 연결
+/// - department_id IS NOT NULL AND team_id IS NULL : 부서는 있으나 팀 미연결 → 팀 연결 시도
 pub async fn sync_assets_to_departments(
     db: &DatabaseConnection,
     company_id: i32,
@@ -83,11 +87,16 @@ pub async fn sync_assets_to_departments(
     use crate::models::assets;
     use crate::models::category_field_defs;
 
-    // 아직 department_id가 없는 자산만 대상
+    // department_id 없거나, 부서는 있지만 team_id도 없는 자산 대상
     let target_assets = assets::Entity::find()
         .filter(AssetCol::CompanyId.eq(company_id))
         .filter(AssetCol::DeletedAt.is_null())
-        .filter(AssetCol::DepartmentId.is_null())
+        .filter(AssetCol::Location.is_not_null())
+        .filter(
+            Condition::any()
+                .add(AssetCol::DepartmentId.is_null())
+                .add(AssetCol::TeamId.is_null()),
+        )
         .all(db)
         .await
         .map_err(|e| format!("자산 조회 실패: {}", e))?;
@@ -96,7 +105,7 @@ pub async fn sync_assets_to_departments(
         return Ok(0);
     }
 
-    // 팀명 field_def 조회 (있을 수도 없을 수도)
+    // 팀명 field_def 조회
     let all_defs = category_field_defs::Model::find_by_company(db, company_id)
         .await
         .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
@@ -111,7 +120,7 @@ pub async fn sync_assets_to_departments(
     let asset_ids: Vec<i32> = target_assets.iter().map(|a| a.id).collect();
     let team_fvs = if !team_def_ids.is_empty() {
         asset_field_values::Entity::find()
-            .filter(FvCol::AssetId.is_in(asset_ids.clone()))
+            .filter(FvCol::AssetId.is_in(asset_ids))
             .filter(FvCol::FieldDefId.is_in(team_def_ids))
             .all(db)
             .await
@@ -153,12 +162,13 @@ pub async fn sync_assets_to_departments(
         let dept =
             find_or_create_department(db, &mut dept_cache, &dept_name, company_id).await?;
 
+        // 팀명이 있으면 팀 연결, 없으면 team_id = None (부서만 연결)
         let team_id = if let Some(team_name) = team_name_map.get(&asset.id) {
             let team =
                 find_or_create_team(db, &mut team_cache, team_name, dept.id, company_id).await?;
             Some(team.id)
         } else {
-            None
+            asset.team_id // 기존 team_id 유지 (이미 있다면 덮어쓰지 않음)
         };
 
         let mut active: assets::ActiveModel = asset.into();
