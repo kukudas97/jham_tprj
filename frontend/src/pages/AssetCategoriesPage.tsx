@@ -751,7 +751,7 @@ const AssetCategoriesPage: React.FC = () => {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1 flex flex-col">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0">
             {!selectedPid ? (
               <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                 왼쪽에서 분류를 선택하면 해당 자산이 표시됩니다
@@ -765,14 +765,28 @@ const AssetCategoriesPage: React.FC = () => {
                 이 분류에 자산이 없습니다
               </div>
             ) : (
-              <div className="overflow-auto flex-1">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <div className="overflow-auto flex-1 min-h-0">
+                <table className="min-w-full text-sm border-collapse">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
                     <tr>
-                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10">No.</th>
+                      {/* No. — 고정 */}
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10 sticky left-0 bg-gray-50 z-20">No.</th>
+                      {/* 품명 — 고정 */}
+                      <th
+                        onClick={() => handleSort('name')}
+                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky left-10 bg-gray-50 z-20 w-36"
+                      >
+                        <span className="flex items-center gap-0.5">품명{sortIcon('name')}</span>
+                      </th>
+                      {/* 식별번호 — 고정 + 우측 구분선 */}
+                      <th
+                        onClick={() => handleSort('serial')}
+                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky left-[11.5rem] bg-gray-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
+                      >
+                        <span className="flex items-center gap-0.5">식별번호{sortIcon('serial')}</span>
+                      </th>
+                      {/* 스크롤 컬럼 */}
                       {[
-                        { key: 'name', label: '품명' },
-                        { key: 'serial', label: '식별번호' },
                         { key: 'department', label: '부서명' },
                         { key: 'team', label: '팀명' },
                         { key: 'manager', label: '관리자' },
@@ -798,18 +812,23 @@ const AssetCategoriesPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sortedAssets.map((asset, idx) => (
-                      <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-3 py-3 text-center text-xs text-gray-400 whitespace-nowrap">{idx + 1}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                      <tr key={asset.pid} className="hover:bg-gray-50 transition-colors group">
+                        {/* No. — 고정 */}
+                        <td className="px-3 py-3 text-center text-xs text-gray-400 whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-gray-50">{idx + 1}</td>
+                        {/* 품명 — 고정 */}
+                        <td className="px-4 py-3 whitespace-nowrap sticky left-10 z-10 bg-white group-hover:bg-gray-50 w-36 max-w-[9rem] overflow-hidden">
                           <button
                             type="button"
                             onClick={() => setDrawerPid(asset.pid)}
-                            className="font-medium text-blue-700 hover:underline"
+                            className="font-medium text-blue-700 hover:underline truncate max-w-full block"
+                            title={asset.name}
                           >
                             {asset.name}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{asset.serial_number ?? '-'}</td>
+                        {/* 식별번호 — 고정 + 우측 구분선 */}
+                        <td className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap sticky left-[11.5rem] z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]">{asset.serial_number ?? '-'}</td>
+                        {/* 스크롤 컬럼 */}
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.manager_name ?? '-'}</td>
