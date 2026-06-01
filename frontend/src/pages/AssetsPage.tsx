@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
 import type { Asset, Category } from '../api/types';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
+import AssetDetailDrawer from '../components/AssetDetailDrawer';
 import ExcelExportModal from '../components/ExcelExportModal';
 import LabelPrintModal from '../components/LabelPrintModal';
 import { printLabels } from '../utils/printLabels';
@@ -140,8 +140,8 @@ const AssetsPage: React.FC = () => {
   const [filterDept, setFilterDept] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const [drawerPid, setDrawerPid] = useState<string | null>(null);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
 
   const fetchAll = async () => {
     try {
@@ -565,7 +565,7 @@ const AssetsPage: React.FC = () => {
                         <td className="px-5 py-3.5">
                           <button
                             type="button"
-                            onClick={() => navigate(`/assets/${asset.pid}`)}
+                            onClick={() => setDrawerPid(asset.pid)}
                             className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline text-left"
                           >
                             {asset.name}
@@ -662,7 +662,7 @@ const AssetsPage: React.FC = () => {
                         />
                         <button
                           type="button"
-                          onClick={() => navigate(`/assets/${asset.pid}`)}
+                          onClick={() => setDrawerPid(asset.pid)}
                           className="font-semibold text-gray-900 text-left hover:text-indigo-600 transition-colors flex-1 min-w-0 truncate"
                         >
                           {asset.name}
@@ -767,6 +767,12 @@ const AssetsPage: React.FC = () => {
           }}
         />
       )}
+
+      <AssetDetailDrawer
+        pid={drawerPid}
+        onClose={() => setDrawerPid(null)}
+        onSaved={() => fetchAll()}
+      />
     </Layout>
   );
 };

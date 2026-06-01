@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import * as categoriesApi from '../api/categories';
 import * as assetsApi from '../api/assets';
 import type { Category, Asset, FieldDef } from '../api/types';
 import { isCurrencyField, formatCurrency } from '../utils/format';
+import AssetDetailDrawer from '../components/AssetDetailDrawer';
 import Layout from '../components/Layout';
 
 interface RequiredFieldsState {
@@ -284,7 +284,6 @@ const FieldDefModal: React.FC<FieldDefModalProps> = ({ catPid, catName, fieldDef
 };
 
 const AssetCategoriesPage: React.FC = () => {
-  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPid, setSelectedPid] = useState<string | null>(null);
@@ -303,6 +302,7 @@ const AssetCategoriesPage: React.FC = () => {
   const [collapsedPids, setCollapsedPids] = useState<Set<string>>(new Set());
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const [drawerPid, setDrawerPid] = useState<string | null>(null);
   const initialCollapseDone = React.useRef(false);
 
   const fetchCategories = useCallback(async () => {
@@ -803,7 +803,7 @@ const AssetCategoriesPage: React.FC = () => {
                         <td className="px-4 py-3">
                           <button
                             type="button"
-                            onClick={() => navigate(`/assets/${asset.pid}`)}
+                            onClick={() => setDrawerPid(asset.pid)}
                             className="font-medium text-blue-700 hover:underline"
                           >
                             {asset.name}
@@ -840,6 +840,12 @@ const AssetCategoriesPage: React.FC = () => {
           onChanged={fetchCategories}
         />
       )}
+
+      <AssetDetailDrawer
+        pid={drawerPid}
+        onClose={() => setDrawerPid(null)}
+        onSaved={() => assetsApi.list().then(setAllAssets)}
+      />
     </Layout>
   );
 };
