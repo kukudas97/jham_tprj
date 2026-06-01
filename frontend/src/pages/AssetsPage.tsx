@@ -136,7 +136,7 @@ const AssetsPage: React.FC = () => {
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(25);
   const [filterDept, setFilterDept] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
@@ -233,14 +233,18 @@ const AssetsPage: React.FC = () => {
     });
   }, [filtered, sortConfig, categories]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
+  // pageSize === 0 → 모두 표시
+  const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize);
+  const paginated = pageSize === 0 ? sorted : sorted.slice((page - 1) * pageSize, page * pageSize);
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     if (page <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
     if (page >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     return [1, '...', page - 1, page, page + 1, '...', totalPages];
   })();
+  const countLabel = pageSize === 0
+    ? `전체 ${filtered.length}개`
+    : `총 ${filtered.length}개 중 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)}개`;
 
   const selectedAssets = filtered.filter((a) => selectedPids.has(a.pid));
   const isAllSelected = paginated.length > 0 && paginated.every((a) => selectedPids.has(a.pid));
@@ -490,6 +494,21 @@ const AssetsPage: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* 그리드 상단: 건수 (좌) + 페이지 크기 선택 (우) */}
+            <div className="flex items-center justify-between mb-2 px-1">
+              <p className="text-xs text-gray-500">{countLabel}</p>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                {[10, 25, 50, 100, 250, 500].map((n) => (
+                  <option key={n} value={n}>{n}개씩</option>
+                ))}
+                <option value={0}>모두</option>
+              </select>
+            </div>
+
             {/* 데스크톱 테이블 */}
             <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden overflow-x-auto shadow-sm">
               <table className="w-full text-sm">
@@ -599,47 +618,29 @@ const AssetsPage: React.FC = () => {
               </table>
             </div>
 
-            {/* 페이지네이션 */}
-            {filtered.length > 0 && (
-              <div className="flex items-center justify-between px-1 mt-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-gray-500">
-                    총 {filtered.length}개 중 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)}개
-                  </p>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                  >
-                    {[10, 20, 50, 100].map((n) => (
-                      <option key={n} value={n}>{n}개씩</option>
-                    ))}
-                  </select>
-                </div>
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => setPage(1)} disabled={page === 1}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">«</button>
-                    <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">‹</button>
-                    {pageNumbers.map((n, i) =>
-                      n === '...' ? (
-                        <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm">…</span>
-                      ) : (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setPage(n as number)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${page === n ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-                        >{n}</button>
-                      )
-                    )}
-                    <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">›</button>
-                    <button type="button" onClick={() => setPage(totalPages)} disabled={page === totalPages}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">»</button>
-                  </div>
+            {/* 페이지네이션 (버튼만) */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-1 mt-3">
+                <button type="button" onClick={() => setPage(1)} disabled={page === 1}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">«</button>
+                <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">‹</button>
+                {pageNumbers.map((n, i) =>
+                  n === '...' ? (
+                    <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm">…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setPage(n as number)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${page === n ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >{n}</button>
+                  )
                 )}
+                <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">›</button>
+                <button type="button" onClick={() => setPage(totalPages)} disabled={page === totalPages}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm">»</button>
               </div>
             )}
 
