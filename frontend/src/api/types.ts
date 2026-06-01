@@ -79,3 +79,14 @@ export interface AssetUpload {
   status: string;
   error_message: string | null;
 }
+
+export interface Team {
+  pid: string;
+  name: string;
+}
+
+export interface Department {
+  pid: string;
+  name: string;
+  teams: Team[];
+}

@@ -19,6 +19,8 @@ pub struct Model {
     pub company_id: i32,
     pub category_id: Option<i32>,
     pub photo_path: Option<String>,
+    pub department_id: Option<i32>,
+    pub team_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -43,6 +45,22 @@ pub enum Relation {
     Companies,
     #[sea_orm(has_many = "super::qr_codes::Entity")]
     QrCodes,
+    #[sea_orm(
+        belongs_to = "super::departments::Entity",
+        from = "Column::DepartmentId",
+        to = "super::departments::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    Departments,
+    #[sea_orm(
+        belongs_to = "super::teams::Entity",
+        from = "Column::TeamId",
+        to = "super::teams::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    Teams,
 }
 
 impl Related<super::asset_inspections::Entity> for Entity {
@@ -66,5 +84,17 @@ impl Related<super::companies::Entity> for Entity {
 impl Related<super::qr_codes::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::QrCodes.def()
+    }
+}
+
+impl Related<super::departments::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Departments.def()
+    }
+}
+
+impl Related<super::teams::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Teams.def()
     }
 }

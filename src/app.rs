@@ -54,6 +54,7 @@ impl Hooks for App {
             .add_route(controllers::category_field_def::routes())
             .add_route(controllers::asset::routes())
             .add_route(controllers::company::routes())
+            .add_route(controllers::department::routes())
             .add_route(controllers::auth::routes())
     }
     async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {

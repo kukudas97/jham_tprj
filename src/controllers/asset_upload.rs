@@ -11,7 +11,10 @@ use crate::models::asset_field_values;
 use crate::models::asset_uploads::{self, STATUS_FAILED, STATUS_SUCCESS};
 use crate::models::assets;
 use crate::models::category_field_defs;
+use crate::models::departments;
+use crate::models::teams;
 use crate::models::users;
+use crate::services;
 use crate::views::asset_upload::AssetUploadResponse;
 
 // Excel 업로드 양식
@@ -247,6 +250,16 @@ async fn do_parse_and_insert(
         .await
         .map_err(|e| format!("필드 정의 조회 실패: {}", e))?;
 
+    let mut dept_cache: Vec<departments::Model> =
+        departments::Model::find_all_active_by_company(db, company_id)
+            .await
+            .map_err(|e| format!("부서 조회 실패: {}", e))?;
+
+    let mut team_cache: Vec<teams::Model> =
+        teams::Model::find_all_active_by_company(db, company_id)
+            .await
+            .map_err(|e| format!("팀 조회 실패: {}", e))?;
+
     let get_str = |row: &[Data], idx: Option<usize>| -> Option<String> {
         idx.and_then(|i| row.get(i)).and_then(|v| {
             let s = match v {
@@ -374,6 +387,30 @@ async fn do_parse_and_insert(
                 format!("'{}' 시트 {}행: '부서명'이 없습니다.", sheet_name, row_num)
             })?;
 
+            // 부서/팀 자동 생성 및 ID 조회
+            let dept = services::department::find_or_create_department(
+                db,
+                &mut dept_cache,
+                &dept_name,
+                company_id,
+            )
+            .await?;
+
+            let team_name_opt = get_str(row, team_col);
+            let team_id = if let Some(ref tname) = team_name_opt {
+                let team = services::department::find_or_create_team(
+                    db,
+                    &mut team_cache,
+                    tname,
+                    dept.id,
+                    company_id,
+                )
+                .await?;
+                Some(team.id)
+            } else {
+                None
+            };
+
             // 동일 식별번호 자산 조회 → 있으면 업데이트, 없으면 신규 등록
             let asset =
                 if let Some(existing) = find_asset_by_serial(db, &id_number, company_id).await? {
@@ -381,6 +418,8 @@ async fn do_parse_and_insert(
                     active.name = Set(product_name);
                     active.location = Set(Some(dept_name));
                     active.category_id = Set(Some(assigned_cat.id));
+                    active.department_id = Set(Some(dept.id));
+                    active.team_id = Set(team_id);
                     active.update(db).await.map_err(|e| format!("DB 업데이트 실패: {}", e))?
                 } else {
                     assets::ActiveModel {
@@ -390,6 +429,8 @@ async fn do_parse_and_insert(
                         location: Set(Some(dept_name)),
                         note: Set(None),
                         category_id: Set(Some(assigned_cat.id)),
+                        department_id: Set(Some(dept.id)),
+                        team_id: Set(team_id),
                         ..Default::default()
                     }
                     .insert(db)

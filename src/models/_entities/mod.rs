@@ -9,5 +9,7 @@ pub mod asset_uploads;
 pub mod assets;
 pub mod category_field_defs;
 pub mod companies;
+pub mod departments;
 pub mod qr_codes;
+pub mod teams;
 pub mod users;

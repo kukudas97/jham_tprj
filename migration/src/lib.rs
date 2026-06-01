@@ -15,6 +15,9 @@ mod m20260527_000003_add_required_fields_to_categories;
 mod m20260527_000004_category_field_defs;
 mod m20260527_000005_asset_field_values;
 mod m20260527_000006_add_photo_to_assets;
+mod m20260601_000001_departments;
+mod m20260601_000002_teams;
+mod m20260601_000003_add_dept_team_to_assets;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -34,6 +37,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20260527_000004_category_field_defs::Migration),
             Box::new(m20260527_000005_asset_field_values::Migration),
             Box::new(m20260527_000006_add_photo_to_assets::Migration),
+            Box::new(m20260601_000001_departments::Migration),
+            Box::new(m20260601_000002_teams::Migration),
+            Box::new(m20260601_000003_add_dept_team_to_assets::Migration),
             // inject-above (do not remove this comment)
         ]
     }

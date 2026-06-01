@@ -5,4 +5,5 @@ pub mod asset_inspection;
 pub mod asset_upload;
 pub mod category_field_def;
 pub mod company;
+pub mod department;
 pub mod qr_code;

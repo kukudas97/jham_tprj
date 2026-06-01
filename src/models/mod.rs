@@ -7,4 +7,6 @@ pub mod asset_field_values;
 pub mod asset_inspections;
 pub mod asset_uploads;
 pub mod category_field_defs;
+pub mod departments;
 pub mod qr_codes;
+pub mod teams;
