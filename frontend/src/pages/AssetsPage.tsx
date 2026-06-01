@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
-import type { Asset, Category } from '../api/types';
+import * as departmentsApi from '../api/departments';
+import type { Asset, Category, Department } from '../api/types';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
 import AssetDetailDrawer from '../components/AssetDetailDrawer';
@@ -125,6 +126,7 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
 const AssetsPage: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategoryPid, setFilterCategoryPid] = useState('');
@@ -137,17 +139,22 @@ const AssetsPage: React.FC = () => {
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [filterDept, setFilterDept] = useState('');
-  const [filterTeam, setFilterTeam] = useState('');
+  const [filterDeptPid, setFilterDeptPid] = useState('');
+  const [filterTeamPid, setFilterTeamPid] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(null);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
 
   const fetchAll = async () => {
     try {
-      const [assetData, catData] = await Promise.all([assetsApi.list(), categoriesApi.list()]);
+      const [assetData, catData, deptData] = await Promise.all([
+        assetsApi.list(),
+        categoriesApi.list(),
+        departmentsApi.list(),
+      ]);
       setAssets(assetData);
       setCategories(catData);
+      setDepartments(deptData);
     } finally {
       setLoading(false);
     }
@@ -156,7 +163,7 @@ const AssetsPage: React.FC = () => {
   useEffect(() => { fetchAll(); }, []);
 
   // 필터 변경 시 선택 및 페이지 초기화
-  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid, filterDept, filterTeam]);
+  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPid, filterDeptPid, filterTeamPid]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
   const openEdit = (asset: Asset) => { setEditing(asset); setShowModal(true); };
@@ -185,13 +192,9 @@ const AssetsPage: React.FC = () => {
     return [filterCategoryPid];
   })();
 
-  const deptOptions = useMemo(
-    () => [...new Set(assets.map((a) => a.department_name ?? '').filter(Boolean))].sort(),
-    [assets],
-  );
   const teamOptions = useMemo(
-    () => [...new Set(assets.map((a) => a.team_name ?? '').filter(Boolean))].sort(),
-    [assets],
+    () => departments.find((d) => d.pid === filterDeptPid)?.teams ?? [],
+    [departments, filterDeptPid],
   );
 
   const filtered = assets.filter((a) => {
@@ -201,8 +204,8 @@ const AssetsPage: React.FC = () => {
       (a.serial_number ?? '').toLowerCase().includes(q) ||
       (a.manager_name ?? '').toLowerCase().includes(q);
     const matchCategory = !filterPids || filterPids.includes(a.category_pid ?? '');
-    const matchDept = !filterDept || (a.department_name ?? '') === filterDept;
-    const matchTeam = !filterTeam || (a.team_name ?? '') === filterTeam;
+    const matchDept = !filterDeptPid || a.department_pid === filterDeptPid;
+    const matchTeam = !filterTeamPid || a.team_pid === filterTeamPid;
     return matchSearch && matchCategory && matchDept && matchTeam;
   });
 
@@ -432,23 +435,24 @@ const AssetsPage: React.FC = () => {
             ))}
           </select>
           <select
-            value={filterDept}
-            onChange={(e) => setFilterDept(e.target.value)}
+            value={filterDeptPid}
+            onChange={(e) => { setFilterDeptPid(e.target.value); setFilterTeamPid(''); }}
             className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
           >
             <option value="">전체 부서</option>
-            {deptOptions.map((d) => (
-              <option key={d} value={d}>{d}</option>
+            {departments.map((d) => (
+              <option key={d.pid} value={d.pid}>{d.name}</option>
             ))}
           </select>
           <select
-            value={filterTeam}
-            onChange={(e) => setFilterTeam(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
+            value={filterTeamPid}
+            onChange={(e) => setFilterTeamPid(e.target.value)}
+            disabled={!filterDeptPid || teamOptions.length === 0}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">전체 팀</option>
             {teamOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t.pid} value={t.pid}>{t.name}</option>
             ))}
           </select>
         </div>
