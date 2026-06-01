@@ -24,6 +24,10 @@ use crate::views::asset::{AssetResponse, FieldValueResponse};
 use crate::views::asset_inspection::AssetInspectionResponse;
 use crate::views::qr_code::QrCodeResponse;
 
+fn parse_date(s: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldValueInput {
     pub field_def_pid: String,
@@ -48,6 +52,17 @@ pub struct Params {
 pub struct InspectionParams {
     pub inspector_name: String,
     pub note: Option<String>,
+    #[serde(default = "default_inspection_type")]
+    pub inspection_type: String,
+    pub inspection_result: Option<String>,
+    pub inspection_date: Option<String>,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+    pub remarks: Option<String>,
+}
+
+fn default_inspection_type() -> String {
+    "일반점검".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -389,6 +404,12 @@ pub async fn add_public_inspection(
     item.asset_id = Set(asset.id);
     item.inspector_name = Set(params.inspector_name);
     item.note = Set(params.note);
+    item.inspection_type = Set(params.inspection_type);
+    item.inspection_result = Set(params.inspection_result);
+    item.inspection_date = Set(params.inspection_date.as_deref().and_then(parse_date));
+    item.period_start = Set(params.period_start.as_deref().and_then(parse_date));
+    item.period_end = Set(params.period_end.as_deref().and_then(parse_date));
+    item.remarks = Set(params.remarks);
     let item = item.insert(&ctx.db).await?;
     format::json(AssetInspectionResponse::from(item))
 }
@@ -457,6 +478,12 @@ pub async fn add_inspection(
     item.asset_id = Set(asset.id);
     item.inspector_name = Set(params.inspector_name);
     item.note = Set(params.note);
+    item.inspection_type = Set(params.inspection_type);
+    item.inspection_result = Set(params.inspection_result);
+    item.inspection_date = Set(params.inspection_date.as_deref().and_then(parse_date));
+    item.period_start = Set(params.period_start.as_deref().and_then(parse_date));
+    item.period_end = Set(params.period_end.as_deref().and_then(parse_date));
+    item.remarks = Set(params.remarks);
     let item = item.insert(&ctx.db).await?;
     format::json(AssetInspectionResponse::from(item))
 }

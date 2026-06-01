@@ -14,6 +14,13 @@ pub struct Model {
     pub inspector_name: String,
     pub note: Option<String>,
     pub asset_id: i32,
+    pub inspection_type: String,
+    pub inspection_result: Option<String>,
+    pub inspection_date: Option<Date>,
+    pub period_start: Option<Date>,
+    pub period_end: Option<Date>,
+    pub remarks: Option<String>,
+    pub deleted_at: Option<DateTimeWithTimeZone>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

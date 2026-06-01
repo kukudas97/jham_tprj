@@ -10,6 +10,7 @@ pub mod assets;
 pub mod category_field_defs;
 pub mod companies;
 pub mod departments;
+pub mod inspection_templates;
 pub mod qr_codes;
 pub mod teams;
 pub mod users;

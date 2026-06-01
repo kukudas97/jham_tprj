@@ -49,6 +49,8 @@ impl Hooks for App {
         AppRoutes::with_default_routes() // controller routes below
             .add_route(controllers::qr_code::routes())
             .add_route(controllers::asset_inspection::routes())
+            .add_route(controllers::inspection::routes())
+            .add_route(controllers::inspection_template::routes())
             .add_route(controllers::asset_upload::routes())
             .add_route(controllers::asset_category::routes())
             .add_route(controllers::category_field_def::routes())

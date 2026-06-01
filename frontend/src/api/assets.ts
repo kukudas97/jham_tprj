@@ -1,5 +1,5 @@
 import client from './client';
-import type { Asset, AssetParams, Inspection, QrCode } from './types';
+import type { Asset, AssetParams, Inspection, InspectionParams, QrCode } from './types';
 
 export const list = () => client.get<Asset[]>('/assets').then((r) => r.data);
 
@@ -19,10 +19,14 @@ export const getQr = (pid: string) =>
 export const listInspections = (pid: string) =>
   client.get<Inspection[]>(`/assets/${pid}/inspections`).then((r) => r.data);
 
-export const addInspection = (pid: string, inspector_name: string, note?: string) =>
-  client
-    .post<Inspection>(`/assets/${pid}/inspections`, { inspector_name, note })
-    .then((r) => r.data);
+export const addInspection = (pid: string, params: InspectionParams) =>
+  client.post<Inspection>(`/assets/${pid}/inspections`, params).then((r) => r.data);
+
+export const updateInspection = (pid: string, params: InspectionParams) =>
+  client.put<Inspection>(`/asset_inspections/${pid}`, params).then((r) => r.data);
+
+export const deleteInspection = (pid: string) =>
+  client.delete(`/asset_inspections/${pid}`);
 
 export const uploadPhoto = (pid: string, file: File) => {
   const form = new FormData();

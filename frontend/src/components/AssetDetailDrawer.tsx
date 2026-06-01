@@ -1,15 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
-import type { Asset, Category, Inspection, QrCode } from '../api/types';
+import type { Asset, Category, Inspection, InspectionResult, QrCode } from '../api/types';
 import { isCurrencyField, formatCurrency } from '../utils/format';
 import AssetFormModal from './AssetFormModal';
+import InspectionModal from './InspectionModal';
 
 interface Props {
   pid: string | null;
   onClose: () => void;
   onSaved?: (asset: Asset) => void;
 }
+
+const RESULT_BADGE: Record<InspectionResult, string> = {
+  점검완료: 'bg-emerald-100 text-emerald-700',
+  재점검필요: 'bg-amber-100 text-amber-700',
+  폐기처리: 'bg-red-100 text-red-700',
+  기타: 'bg-gray-100 text-gray-600',
+};
 
 const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
   const [asset, setAsset] = useState<Asset | null>(null);
@@ -19,10 +27,10 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showAddInspection, setShowAddInspection] = useState(false);
-  const [inspectorName, setInspectorName] = useState('');
-  const [inspectionNote, setInspectionNote] = useState('');
-  const [addingInspection, setAddingInspection] = useState(false);
+  const [inspectionModalTarget, setInspectionModalTarget] = useState<Inspection | null | 'new'>(
+    undefined as unknown as null,
+  );
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,16 +55,22 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
     }
   }, []);
 
+  const reloadInspections = useCallback(async (assetPid: string) => {
+    const data = await assetsApi.listInspections(assetPid);
+    setInspections(data);
+  }, []);
+
   useEffect(() => {
     if (pid) fetchData(pid);
   }, [pid, fetchData]);
 
-  // ESC 키 닫기
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !showInspectionModal && !showEditModal) onClose();
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, showInspectionModal, showEditModal]);
 
   const handleGetQr = async () => {
     if (!pid) return;
@@ -83,20 +97,19 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
     }
   };
 
-  const handleAddInspection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pid) return;
-    setAddingInspection(true);
-    try {
-      await assetsApi.addInspection(pid, inspectorName, inspectionNote || undefined);
-      setInspectorName('');
-      setInspectionNote('');
-      setShowAddInspection(false);
-      const data = await assetsApi.listInspections(pid);
-      setInspections(data);
-    } finally {
-      setAddingInspection(false);
-    }
+  const openNewInspection = () => {
+    setInspectionModalTarget(null);
+    setShowInspectionModal(true);
+  };
+
+  const openEditInspection = (ins: Inspection) => {
+    setInspectionModalTarget(ins);
+    setShowInspectionModal(true);
+  };
+
+  const handleInspectionSaved = () => {
+    setShowInspectionModal(false);
+    if (pid) reloadInspections(pid);
   };
 
   const isOpen = !!pid;
@@ -124,7 +137,7 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
       <div
         className={`fixed top-0 right-0 h-full w-full sm:w-[520px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* 드로어 헤더 */}
+        {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-semibold text-gray-900 text-base">자산 상세</h2>
           <div className="flex items-center gap-2">
@@ -153,7 +166,7 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
           </div>
         </div>
 
-        {/* 드로어 본문 */}
+        {/* 본문 */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center h-48">
@@ -169,7 +182,6 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
             <div className="p-5 space-y-5">
               {/* 자산 기본 정보 */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                {/* 사진 */}
                 {asset.photo_url ? (
                   <div className="relative group bg-gray-50">
                     <img src={asset.photo_url} alt="자산 사진" className="w-full max-h-52 object-contain" />
@@ -324,7 +336,7 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowAddInspection(!showAddInspection)}
+                    onClick={openNewInspection}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,37 +345,6 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                     점검 추가
                   </button>
                 </div>
-
-                {showAddInspection && (
-                  <form onSubmit={handleAddInspection} className="mb-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 space-y-2">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">점검자 이름 *</label>
-                      <input
-                        type="text"
-                        value={inspectorName}
-                        onChange={(e) => setInspectorName(e.target.value)}
-                        required
-                        autoFocus
-                        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">점검 내용</label>
-                      <textarea
-                        value={inspectionNote}
-                        onChange={(e) => setInspectionNote(e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setShowAddInspection(false)} className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-                      <button type="submit" disabled={addingInspection} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                        {addingInspection ? '저장 중...' : '저장'}
-                      </button>
-                    </div>
-                  </form>
-                )}
 
                 {inspections.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-6 text-gray-400">
@@ -374,18 +355,45 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                     <p className="text-sm">점검 이력이 없습니다</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {inspections.map((ins) => (
-                      <div key={ins.pid} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {ins.inspector_name.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800">{ins.inspector_name}</p>
-                          {ins.note && <p className="text-xs text-gray-500 mt-0.5">{ins.note}</p>}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검일자</th>
+                          <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검유형</th>
+                          <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검결과</th>
+                          <th className="text-left text-gray-400 font-medium pb-2">비고</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inspections.map((ins) => (
+                          <tr
+                            key={ins.pid}
+                            onClick={() => openEditInspection(ins)}
+                            className="border-b border-gray-50 hover:bg-indigo-50/40 cursor-pointer transition-colors"
+                          >
+                            <td className="py-2 pr-3 text-gray-700 whitespace-nowrap">
+                              {ins.inspection_date ?? (ins.period_start ? `${ins.period_start} ~ ${ins.period_end}` : '-')}
+                            </td>
+                            <td className="py-2 pr-3 whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${ins.inspection_type === '기간점검' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {ins.inspection_type}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-3 whitespace-nowrap">
+                              {ins.inspection_result ? (
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${RESULT_BADGE[ins.inspection_result]}`}>
+                                  {ins.inspection_result}
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="py-2 text-gray-500 max-w-[100px] truncate">
+                              {ins.remarks ?? '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -404,6 +412,15 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
             setShowEditModal(false);
             onSaved?.(saved);
           }}
+        />
+      )}
+
+      {showInspectionModal && pid && (
+        <InspectionModal
+          assetPid={pid}
+          inspection={inspectionModalTarget as Inspection | null}
+          onClose={() => setShowInspectionModal(false)}
+          onSaved={handleInspectionSaved}
         />
       )}
     </>

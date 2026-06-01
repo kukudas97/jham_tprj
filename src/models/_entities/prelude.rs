@@ -5,5 +5,6 @@ pub use super::asset_inspections::Entity as AssetInspections;
 pub use super::asset_uploads::Entity as AssetUploads;
 pub use super::assets::Entity as Assets;
 pub use super::companies::Entity as Companies;
+pub use super::inspection_templates::Entity as InspectionTemplates;
 pub use super::qr_codes::Entity as QrCodes;
 pub use super::users::Entity as Users;

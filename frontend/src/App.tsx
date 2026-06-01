@@ -10,6 +10,7 @@ import DepartmentsPage from './pages/DepartmentsPage';
 import UploadPage from './pages/UploadPage';
 import QrScanPage from './pages/QrScanPage';
 import HelpPage from './pages/HelpPage';
+import InspectionsPage from './pages/InspectionsPage';
 
 const App: React.FC = () => (
   <AuthProvider>
@@ -62,6 +63,14 @@ const App: React.FC = () => (
           element={
             <AuthGuard>
               <HelpPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/inspections"
+          element={
+            <AuthGuard>
+              <InspectionsPage />
             </AuthGuard>
           }
         />

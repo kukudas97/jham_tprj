@@ -70,10 +70,66 @@ export interface Category {
   field_defs: FieldDef[];
 }
 
+export type InspectionType = '일반점검' | '기간점검';
+export type InspectionResult = '점검완료' | '재점검필요' | '폐기처리' | '기타';
+
 export interface Inspection {
   pid: string;
   inspector_name: string;
   note: string | null;
+  inspection_type: InspectionType;
+  inspection_result: InspectionResult | null;
+  inspection_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  remarks: string | null;
+  created_at: string;
+}
+
+export interface InspectionParams {
+  inspector_name: string;
+  note?: string;
+  inspection_type: InspectionType;
+  inspection_result?: InspectionResult;
+  inspection_date?: string;
+  period_start?: string;
+  period_end?: string;
+  remarks?: string;
+}
+
+export interface InspectionListItem {
+  pid: string;
+  inspector_name: string;
+  note: string | null;
+  inspection_type: InspectionType;
+  inspection_result: InspectionResult | null;
+  inspection_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  remarks: string | null;
+  created_at: string;
+  asset_pid: string | null;
+  asset_name: string | null;
+  asset_serial_number: string | null;
+  department_name: string | null;
+  team_name: string | null;
+}
+
+export interface InspectionTemplate {
+  pid: string;
+  title: string;
+  inspection_type: InspectionType;
+  inspection_result: InspectionResult | null;
+  remarks: string | null;
+  sort_order: number;
+}
+
+export interface InspectionTemplateParams {
+  title: string;
+  inspection_type: InspectionType;
+  inspection_result?: InspectionResult;
+  remarks?: string;
+  sort_order?: number;
 }
 
 export interface QrCode {
