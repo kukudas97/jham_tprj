@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import * as assetsApi from '../api/assets';
-import type { Asset, AssetParams, Category, CategoryRequiredFields, FieldDef } from '../api/types';
+import * as departmentsApi from '../api/departments';
+import type { Asset, AssetParams, Category, CategoryRequiredFields, Department, FieldDef } from '../api/types';
 
 interface Props {
   editing: Asset | null;
@@ -18,6 +19,7 @@ const defaultRequired = (): CategoryRequiredFields => ({
 const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave }) => {
   const [form, setForm] = useState<AssetParams>({
     name: '', serial_number: '', location: '', note: '', category_pid: '',
+    department_pid: '', team_pid: '', manager_name: '',
   });
   const [selectedParentPid, setSelectedParentPid] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
@@ -25,6 +27,11 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
   const [formError, setFormError] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  useEffect(() => {
+    departmentsApi.list().then(setDepartments).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (editing) {
@@ -39,6 +46,9 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         location: editing.location ?? '',
         note: editing.note ?? '',
         category_pid: editing.category_pid ?? '',
+        department_pid: editing.department_pid ?? '',
+        team_pid: editing.team_pid ?? '',
+        manager_name: editing.manager_name ?? '',
       });
       const fvMap: Record<string, string> = {};
       for (const fv of editing.field_values ?? []) {
@@ -47,7 +57,8 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
       setCustomFieldValues(fvMap);
       setPhotoPreview(editing.photo_url ?? null);
     } else {
-      setForm({ name: '', serial_number: '', location: '', note: '', category_pid: '' });
+      setForm({ name: '', serial_number: '', location: '', note: '', category_pid: '',
+        department_pid: '', team_pid: '', manager_name: '' });
       setSelectedParentPid('');
       setCustomFieldValues({});
       setPhotoPreview(null);
@@ -55,6 +66,9 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
     setPhotoFile(null);
     setFormError('');
   }, [editing, categories]);
+
+  const selectedDept = departments.find((d) => d.pid === form.department_pid);
+  const teamOptions = selectedDept?.teams ?? [];
 
   const childCategories = selectedParentPid
     ? (categories.find((c) => c.pid === selectedParentPid)?.children ?? [])
@@ -79,6 +93,10 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
     } else {
       setForm((f) => ({ ...f, category_pid: '' }));
     }
+  };
+
+  const handleDeptChange = (pid: string) => {
+    setForm((f) => ({ ...f, department_pid: pid, team_pid: '' }));
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,6 +138,9 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         location: form.location || undefined,
         note: form.note || undefined,
         category_pid: form.category_pid || undefined,
+        department_pid: form.department_pid || undefined,
+        team_pid: form.team_pid || undefined,
+        manager_name: form.manager_name || undefined,
         field_values: fieldValuesPayload,
       };
 
@@ -142,6 +163,8 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
     `w-full px-3 py-2.5 border rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors ${
       hasError ? 'border-red-300 bg-red-50' : 'border-gray-200'
     }`;
+
+  const selectCls = `w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors`;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -205,6 +228,49 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
                 </select>
               )}
             </div>
+          </div>
+
+          {/* 부서 / 팀 */}
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">부서</label>
+              <select
+                value={form.department_pid ?? ''}
+                onChange={(e) => handleDeptChange(e.target.value)}
+                className={selectCls}
+              >
+                <option value="">부서 선택</option>
+                {departments.map((d) => (
+                  <option key={d.pid} value={d.pid}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">팀</label>
+              <select
+                value={form.team_pid ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, team_pid: e.target.value }))}
+                disabled={!form.department_pid || teamOptions.length === 0}
+                className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <option value="">팀 선택</option>
+                {teamOptions.map((t) => (
+                  <option key={t.pid} value={t.pid}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 관리자 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">관리자</label>
+            <input
+              type="text"
+              value={form.manager_name ?? ''}
+              onChange={(e) => setForm({ ...form, manager_name: e.target.value })}
+              placeholder="담당자 이름"
+              className={inputCls(false)}
+            />
           </div>
 
           <div>

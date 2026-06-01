@@ -1,5 +1,5 @@
 use loco_rs::prelude::*;
-use sea_orm::ColumnTrait;
+use sea_orm::{ColumnTrait, QueryFilter};
 use uuid::Uuid;
 
 pub use super::_entities::teams::{self, ActiveModel, Entity, Model};
@@ -34,6 +34,16 @@ impl Model {
         Ok(teams::Entity::find()
             .filter(teams::Column::CompanyId.eq(company_id))
             .filter(teams::Column::DeletedAt.is_null())
+            .all(db)
+            .await?)
+    }
+
+    pub async fn find_by_ids(db: &DatabaseConnection, ids: Vec<i32>) -> ModelResult<Vec<Self>> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        Ok(teams::Entity::find()
+            .filter(teams::Column::Id.is_in(ids))
             .all(db)
             .await?)
     }

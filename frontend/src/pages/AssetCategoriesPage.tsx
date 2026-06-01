@@ -484,7 +484,9 @@ const AssetCategoriesPage: React.FC = () => {
       let bv = '';
       if (sortConfig.key === 'name') { av = a.name; bv = b.name; }
       else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
-      else if (sortConfig.key === 'location') { av = a.location ?? ''; bv = b.location ?? ''; }
+      else if (sortConfig.key === 'department') { av = a.department_name ?? ''; bv = b.department_name ?? ''; }
+      else if (sortConfig.key === 'team') { av = a.team_name ?? ''; bv = b.team_name ?? ''; }
+      else if (sortConfig.key === 'manager') { av = a.manager_name ?? ''; bv = b.manager_name ?? ''; }
       else {
         av = a.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
         bv = b.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
@@ -770,7 +772,9 @@ const AssetCategoriesPage: React.FC = () => {
                       {[
                         { key: 'name', label: '품명' },
                         { key: 'serial', label: '식별번호' },
-                        { key: 'location', label: '부서명' },
+                        { key: 'department', label: '부서명' },
+                        { key: 'team', label: '팀명' },
+                        { key: 'manager', label: '관리자' },
                       ].map(({ key, label }) => (
                         <th
                           key={key}
@@ -805,7 +809,9 @@ const AssetCategoriesPage: React.FC = () => {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{asset.location ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{asset.department_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{asset.team_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{asset.manager_name ?? '-'}</td>
                         {customFieldDefs.map((def) => (
                           <td key={def.pid} className="px-4 py-3 text-gray-500">
                             {getFieldValue(asset, def.field_label) ?? '-'}

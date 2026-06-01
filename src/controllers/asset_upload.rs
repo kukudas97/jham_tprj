@@ -425,7 +425,7 @@ async fn do_parse_and_insert(
                     assets::ActiveModel {
                         name: Set(product_name),
                         company_id: Set(company_id),
-                        serial_number: Set(Some(id_number)),
+                        serial_number: Set(id_number),
                         location: Set(Some(dept_name)),
                         note: Set(None),
                         category_id: Set(Some(assigned_cat.id)),

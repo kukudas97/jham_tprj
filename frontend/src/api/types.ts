@@ -30,6 +30,11 @@ export interface Asset {
   note: string | null;
   category_pid: string | null;
   category_name: string | null;
+  department_pid: string | null;
+  department_name: string | null;
+  team_pid: string | null;
+  team_name: string | null;
+  manager_name: string | null;
   field_values: FieldValue[];
   photo_url: string | null;
 }
@@ -40,6 +45,9 @@ export interface AssetParams {
   location?: string;
   note?: string;
   category_pid?: string;
+  department_pid?: string;
+  team_pid?: string;
+  manager_name?: string;
   field_values?: { field_def_pid: string; value?: string }[];
 }
 

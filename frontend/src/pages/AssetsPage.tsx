@@ -186,12 +186,11 @@ const AssetsPage: React.FC = () => {
   })();
 
   const deptOptions = useMemo(
-    () => [...new Set(assets.map((a) => a.location ?? '').filter(Boolean))].sort(),
+    () => [...new Set(assets.map((a) => a.department_name ?? '').filter(Boolean))].sort(),
     [assets],
   );
   const teamOptions = useMemo(
-    () => [...new Set(assets.map((a) => getFieldValue(a, '팀명') ?? '').filter(Boolean))].sort(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => [...new Set(assets.map((a) => a.team_name ?? '').filter(Boolean))].sort(),
     [assets],
   );
 
@@ -200,10 +199,10 @@ const AssetsPage: React.FC = () => {
     const matchSearch =
       a.name.toLowerCase().includes(q) ||
       (a.serial_number ?? '').toLowerCase().includes(q) ||
-      (getFieldValue(a, '관리자') ?? '').toLowerCase().includes(q);
+      (a.manager_name ?? '').toLowerCase().includes(q);
     const matchCategory = !filterPids || filterPids.includes(a.category_pid ?? '');
-    const matchDept = !filterDept || (a.location ?? '') === filterDept;
-    const matchTeam = !filterTeam || (getFieldValue(a, '팀명') ?? '') === filterTeam;
+    const matchDept = !filterDept || (a.department_name ?? '') === filterDept;
+    const matchTeam = !filterTeam || (a.team_name ?? '') === filterTeam;
     return matchSearch && matchCategory && matchDept && matchTeam;
   });
 
@@ -582,9 +581,9 @@ const AssetsPage: React.FC = () => {
                           )}
                         </td>
                         <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.location ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{getFieldValue(asset, '팀명') ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{getFieldValue(asset, '관리자') ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.department_name ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.team_name ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.manager_name ?? '-'}</td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -703,19 +702,19 @@ const AssetsPage: React.FC = () => {
                           {asset.serial_number}
                         </span>
                       )}
-                      {asset.location && (
+                      {asset.department_name && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {asset.location}
+                          {asset.department_name}
                         </span>
                       )}
-                      {getFieldValue(asset, '팀명') && (
+                      {asset.team_name && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {getFieldValue(asset, '팀명')}
+                          {asset.team_name}
                         </span>
                       )}
-                      {getFieldValue(asset, '관리자') && (
+                      {asset.manager_name && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {getFieldValue(asset, '관리자')}
+                          {asset.manager_name}
                         </span>
                       )}
                     </div>

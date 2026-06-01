@@ -18,6 +18,8 @@ mod m20260527_000006_add_photo_to_assets;
 mod m20260601_000001_departments;
 mod m20260601_000002_teams;
 mod m20260601_000003_add_dept_team_to_assets;
+mod m20260601_100000_make_serial_number_required_unique;
+mod m20260601_140000_add_manager_to_assets;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -40,6 +42,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260601_000001_departments::Migration),
             Box::new(m20260601_000002_teams::Migration),
             Box::new(m20260601_000003_add_dept_team_to_assets::Migration),
+            Box::new(m20260601_100000_make_serial_number_required_unique::Migration),
+            Box::new(m20260601_140000_add_manager_to_assets::Migration),
             // inject-above (do not remove this comment)
         ]
     }

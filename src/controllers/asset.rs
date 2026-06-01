@@ -15,7 +15,9 @@ use crate::models::asset_inspections;
 use crate::models::assets::Model;
 use crate::models::category_field_defs;
 use crate::models::_entities::assets::ActiveModel;
+use crate::models::departments;
 use crate::models::qr_codes;
+use crate::models::teams;
 use crate::models::users;
 use crate::services;
 use crate::views::asset::{AssetResponse, FieldValueResponse};
@@ -31,10 +33,13 @@ pub struct FieldValueInput {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
     pub name: String,
-    pub serial_number: Option<String>,
+    pub serial_number: String,
     pub location: Option<String>,
     pub note: Option<String>,
     pub category_pid: Option<String>,
+    pub department_pid: Option<String>,
+    pub team_pid: Option<String>,
+    pub manager_name: Option<String>,
     #[serde(default)]
     pub field_values: Vec<FieldValueInput>,
 }
@@ -49,7 +54,7 @@ pub struct InspectionParams {
 pub struct AssetPublicResponse {
     pub pid: String,
     pub name: String,
-    pub serial_number: Option<String>,
+    pub serial_number: String,
     pub location: Option<String>,
     pub note: Option<String>,
 }
@@ -75,6 +80,35 @@ async fn resolve_category(
     }
 }
 
+async fn resolve_department(
+    ctx: &AppContext,
+    department_pid: &Option<String>,
+    company_id: i32,
+) -> Result<Option<departments::Model>> {
+    match department_pid {
+        Some(pid) => {
+            let dept =
+                departments::Model::find_by_pid_and_company(&ctx.db, pid, company_id).await?;
+            Ok(Some(dept))
+        }
+        None => Ok(None),
+    }
+}
+
+async fn resolve_team(
+    ctx: &AppContext,
+    team_pid: &Option<String>,
+    company_id: i32,
+) -> Result<Option<teams::Model>> {
+    match team_pid {
+        Some(pid) => {
+            let team = teams::Model::find_by_pid_and_company(&ctx.db, pid, company_id).await?;
+            Ok(Some(team))
+        }
+        None => Ok(None),
+    }
+}
+
 async fn fetch_category_for_asset(
     ctx: &AppContext,
     category_id: Option<i32>,
@@ -83,6 +117,32 @@ async fn fetch_category_for_asset(
         Some(id) => {
             let cat = asset_categories::Entity::find_by_id(id).one(&ctx.db).await?;
             Ok(cat)
+        }
+        None => Ok(None),
+    }
+}
+
+async fn fetch_department_for_asset(
+    ctx: &AppContext,
+    department_id: Option<i32>,
+) -> Result<Option<departments::Model>> {
+    match department_id {
+        Some(id) => {
+            let dept = departments::Entity::find_by_id(id).one(&ctx.db).await?;
+            Ok(dept)
+        }
+        None => Ok(None),
+    }
+}
+
+async fn fetch_team_for_asset(
+    ctx: &AppContext,
+    team_id: Option<i32>,
+) -> Result<Option<teams::Model>> {
+    match team_id {
+        Some(id) => {
+            let team = teams::Entity::find_by_id(id).one(&ctx.db).await?;
+            Ok(team)
         }
         None => Ok(None),
     }
@@ -157,6 +217,16 @@ pub async fn list(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Resp
     let cat_map: HashMap<i32, asset_categories::Model> =
         cats.into_iter().map(|c| (c.id, c)).collect();
 
+    let dept_ids: Vec<i32> = items.iter().filter_map(|a| a.department_id).collect();
+    let depts = departments::Model::find_by_ids(&ctx.db, dept_ids).await?;
+    let dept_map: HashMap<i32, departments::Model> =
+        depts.into_iter().map(|d| (d.id, d)).collect();
+
+    let team_ids: Vec<i32> = items.iter().filter_map(|a| a.team_id).collect();
+    let teams_list = teams::Model::find_by_ids(&ctx.db, team_ids).await?;
+    let team_map: HashMap<i32, teams::Model> =
+        teams_list.into_iter().map(|t| (t.id, t)).collect();
+
     let asset_ids: Vec<i32> = items.iter().map(|a| a.id).collect();
     let mut fv_map = build_field_value_responses(&ctx.db, asset_ids, company_id).await?;
 
@@ -164,8 +234,10 @@ pub async fn list(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Resp
         .into_iter()
         .map(|a| {
             let cat = a.category_id.and_then(|id| cat_map.get(&id));
+            let dept = a.department_id.and_then(|id| dept_map.get(&id));
+            let team = a.team_id.and_then(|id| team_map.get(&id));
             let fvs = fv_map.remove(&a.id).unwrap_or_default();
-            AssetResponse::new(a, cat, fvs)
+            AssetResponse::new(a, cat, dept, team, fvs)
         })
         .collect();
 
@@ -180,6 +252,8 @@ pub async fn add(
 ) -> Result<Response> {
     let company_id = get_company_id(&auth, &ctx).await?;
     let cat = resolve_category(&ctx, &params.category_pid, company_id).await?;
+    let dept = resolve_department(&ctx, &params.department_pid, company_id).await?;
+    let team = resolve_team(&ctx, &params.team_pid, company_id).await?;
 
     let mut item = ActiveModel { ..Default::default() };
     item.name = Set(params.name);
@@ -188,6 +262,9 @@ pub async fn add(
     item.note = Set(params.note);
     item.company_id = Set(company_id);
     item.category_id = Set(cat.as_ref().map(|c| c.id));
+    item.department_id = Set(dept.as_ref().map(|d| d.id));
+    item.team_id = Set(team.as_ref().map(|t| t.id));
+    item.manager_name = Set(params.manager_name);
     let item = item.insert(&ctx.db).await?;
 
     save_field_values(&ctx.db, item.id, &params.field_values, company_id).await?;
@@ -208,7 +285,7 @@ pub async fn add(
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(item, cat.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
 #[debug_handler]
@@ -220,6 +297,8 @@ pub async fn update(
 ) -> Result<Response> {
     let company_id = get_company_id(&auth, &ctx).await?;
     let cat = resolve_category(&ctx, &params.category_pid, company_id).await?;
+    let dept = resolve_department(&ctx, &params.department_pid, company_id).await?;
+    let team = resolve_team(&ctx, &params.team_pid, company_id).await?;
     let asset = Model::find_by_pid_and_company(&ctx.db, &pid, company_id).await?;
     let asset_id = asset.id;
     let mut item = asset.into_active_model();
@@ -228,6 +307,9 @@ pub async fn update(
     item.location = Set(params.location);
     item.note = Set(params.note);
     item.category_id = Set(cat.as_ref().map(|c| c.id));
+    item.department_id = Set(dept.as_ref().map(|d| d.id));
+    item.team_id = Set(team.as_ref().map(|t| t.id));
+    item.manager_name = Set(params.manager_name);
     let item = item.update(&ctx.db).await?;
 
     save_field_values(&ctx.db, asset_id, &params.field_values, company_id).await?;
@@ -236,7 +318,7 @@ pub async fn update(
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(item, cat.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
 #[debug_handler]
@@ -247,6 +329,12 @@ pub async fn remove(
 ) -> Result<Response> {
     let company_id = get_company_id(&auth, &ctx).await?;
     let asset = Model::find_by_pid_and_company(&ctx.db, &pid, company_id).await?;
+
+    // QR 코드 먼저 삭제
+    if let Some(qr) = qr_codes::Model::find_by_asset(&ctx.db, asset.id).await? {
+        qr.into_active_model().delete(&ctx.db).await?;
+    }
+
     let mut item = asset.into_active_model();
     item.deleted_at = Set(Some(chrono::Utc::now().into()));
     item.update(&ctx.db).await?;
@@ -263,10 +351,12 @@ pub async fn get_one(
     let item = Model::find_by_pid_and_company(&ctx.db, &pid, company_id).await?;
     let asset_id = item.id;
     let cat = fetch_category_for_asset(&ctx, item.category_id).await?;
+    let dept = fetch_department_for_asset(&ctx, item.department_id).await?;
+    let team = fetch_team_for_asset(&ctx, item.team_id).await?;
     let mut fv_map =
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
-    format::json(AssetResponse::new(item, cat.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
 #[debug_handler]
@@ -414,15 +504,19 @@ pub async fn upload_photo(
         .map_err(|e| Error::Message(e.to_string()))?;
 
     let asset_id = asset.id;
+    let dept_id = asset.department_id;
+    let team_id = asset.team_id;
     let mut active = asset.into_active_model();
     active.photo_path = Set(Some(path));
     let updated = active.update(&ctx.db).await?;
 
     let cat = fetch_category_for_asset(&ctx, updated.category_id).await?;
+    let dept = fetch_department_for_asset(&ctx, dept_id).await?;
+    let team = fetch_team_for_asset(&ctx, team_id).await?;
     let mut fv_map = build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(updated, cat.as_ref(), fvs))
+    format::json(AssetResponse::new(updated, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
 pub async fn serve_photo(Path(filename): Path<String>) -> impl IntoResponse {

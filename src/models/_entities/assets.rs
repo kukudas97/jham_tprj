@@ -12,7 +12,7 @@ pub struct Model {
     pub id: i32,
     pub pid: Uuid,
     pub name: String,
-    pub serial_number: Option<String>,
+    pub serial_number: String,
     pub location: Option<String>,
     pub note: Option<String>,
     pub deleted_at: Option<DateTimeWithTimeZone>,
@@ -21,6 +21,7 @@ pub struct Model {
     pub photo_path: Option<String>,
     pub department_id: Option<i32>,
     pub team_id: Option<i32>,
+    pub manager_name: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
