@@ -301,11 +301,17 @@ const AssetCategoriesPage: React.FC = () => {
   const [fieldModalCat, setFieldModalCat] = useState<Category | null>(null);
   const [collapsedPids, setCollapsedPids] = useState<Set<string>>(new Set());
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
+  const initialCollapseDone = React.useRef(false);
 
   const fetchCategories = useCallback(async () => {
     try {
       const data = await categoriesApi.list();
       setCategories(data);
+      // 최초 로드 시 전체 대분류를 닫힌 상태로 초기화
+      if (!initialCollapseDone.current) {
+        setCollapsedPids(new Set(data.map((c) => c.pid)));
+        initialCollapseDone.current = true;
+      }
     } finally {
       setLoading(false);
     }
@@ -331,11 +337,11 @@ const AssetCategoriesPage: React.FC = () => {
     return map;
   }, [allAssets]);
 
-  const fetchAssets = useCallback(async (catPid: string) => {
+  const fetchAssets = useCallback(async (catPids: string[]) => {
     setAssetsLoading(true);
     try {
       const all = await assetsApi.list();
-      setAssetsInCategory(all.filter((a) => a.category_pid === catPid));
+      setAssetsInCategory(all.filter((a) => a.category_pid && catPids.includes(a.category_pid)));
     } finally {
       setAssetsLoading(false);
     }
@@ -343,7 +349,13 @@ const AssetCategoriesPage: React.FC = () => {
 
   const handleSelectCategory = (pid: string) => {
     setSelectedPid(pid);
-    fetchAssets(pid);
+    // 대분류 선택 시 모든 하위 분류 자산 포함
+    const parent = categories.find((c) => c.pid === pid);
+    if (parent) {
+      fetchAssets([pid, ...parent.children.map((ch) => ch.pid)]);
+    } else {
+      fetchAssets([pid]);
+    }
   };
 
   const handleAddParent = async (e: React.FormEvent) => {
