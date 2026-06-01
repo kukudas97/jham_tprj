@@ -780,7 +780,7 @@ const AssetCategoriesPage: React.FC = () => {
                         <th
                           key={key}
                           onClick={() => handleSort(key)}
-                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap"
                         >
                           <span className="flex items-center gap-0.5">{label}{sortIcon(key)}</span>
                         </th>
@@ -789,7 +789,7 @@ const AssetCategoriesPage: React.FC = () => {
                         <th
                           key={def.pid}
                           onClick={() => handleSort(def.field_label)}
-                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                          className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap"
                         >
                           <span className="flex items-center gap-0.5">{def.field_label}{sortIcon(def.field_label)}</span>
                         </th>
@@ -799,8 +799,8 @@ const AssetCategoriesPage: React.FC = () => {
                   <tbody className="divide-y divide-gray-100">
                     {sortedAssets.map((asset, idx) => (
                       <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-3 py-3 text-center text-xs text-gray-400">{idx + 1}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 text-center text-xs text-gray-400 whitespace-nowrap">{idx + 1}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => setDrawerPid(asset.pid)}
@@ -809,12 +809,12 @@ const AssetCategoriesPage: React.FC = () => {
                             {asset.name}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{asset.department_name ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{asset.team_name ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{asset.manager_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{asset.serial_number ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.manager_name ?? '-'}</td>
                         {customFieldDefs.map((def) => (
-                          <td key={def.pid} className="px-4 py-3 text-gray-500">
+                          <td key={def.pid} className="px-4 py-3 text-gray-500 whitespace-nowrap">
                             {isCurrencyField(def.field_label)
                               ? formatCurrency(getFieldValue(asset, def.field_label))
                               : (getFieldValue(asset, def.field_label) ?? '-')}
