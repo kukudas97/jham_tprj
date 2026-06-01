@@ -9,6 +9,8 @@ pub struct InspectionTemplateResponse {
     pub title: String,
     pub inspection_type: String,
     pub inspection_result: Option<String>,
+    pub inspector_name: Option<String>,
+    pub note: Option<String>,
     pub remarks: Option<String>,
     pub sort_order: i32,
 }
@@ -20,6 +22,8 @@ impl From<Model> for InspectionTemplateResponse {
             title: m.title,
             inspection_type: m.inspection_type,
             inspection_result: m.inspection_result,
+            inspector_name: m.inspector_name,
+            note: m.note,
             remarks: m.remarks,
             sort_order: m.sort_order,
         }

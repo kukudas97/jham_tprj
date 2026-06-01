@@ -120,6 +120,8 @@ export interface InspectionTemplate {
   title: string;
   inspection_type: InspectionType;
   inspection_result: InspectionResult | null;
+  inspector_name: string | null;
+  note: string | null;
   remarks: string | null;
   sort_order: number;
 }
@@ -128,6 +130,8 @@ export interface InspectionTemplateParams {
   title: string;
   inspection_type: InspectionType;
   inspection_result?: InspectionResult;
+  inspector_name?: string;
+  note?: string;
   remarks?: string;
   sort_order?: number;
 }

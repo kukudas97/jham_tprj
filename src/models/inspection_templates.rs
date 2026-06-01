@@ -13,6 +13,9 @@ impl ActiveModelBehavior for ActiveModel {
         if insert {
             let mut this = self;
             this.pid = ActiveValue::Set(Uuid::new_v4());
+            let now: chrono::DateTime<chrono::FixedOffset> = chrono::Utc::now().into();
+            this.created_at = ActiveValue::Set(now);
+            this.updated_at = ActiveValue::Set(now);
             Ok(this)
         } else {
             let mut this = self;

@@ -74,7 +74,7 @@ const AssetDetailPage: React.FC = () => {
     if (!pid) return;
     setAddingInspection(true);
     try {
-      await assetsApi.addInspection(pid, inspectorName, inspectionNote || undefined);
+      await assetsApi.addInspection(pid, { inspector_name: inspectorName, note: inspectionNote || undefined, inspection_type: '일반점검' });
       setInspectorName('');
       setInspectionNote('');
       setShowAddInspection(false);

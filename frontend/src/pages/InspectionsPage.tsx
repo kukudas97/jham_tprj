@@ -90,8 +90,8 @@ const InspectionsPage: React.FC = () => {
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
-      const av = (a as Record<string, unknown>)[sortKey] as string ?? '';
-      const bv = (b as Record<string, unknown>)[sortKey] as string ?? '';
+      const av = (a as unknown as Record<string, unknown>)[sortKey] as string ?? '';
+      const bv = (b as unknown as Record<string, unknown>)[sortKey] as string ?? '';
       return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [items, sortKey, sortAsc]);

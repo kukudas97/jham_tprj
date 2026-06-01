@@ -15,6 +15,8 @@ pub struct Params {
     #[serde(default = "default_inspection_type")]
     pub inspection_type: String,
     pub inspection_result: Option<String>,
+    pub inspector_name: Option<String>,
+    pub note: Option<String>,
     pub remarks: Option<String>,
     pub sort_order: Option<i32>,
 }
@@ -28,6 +30,8 @@ impl Params {
         item.title = Set(self.title.clone());
         item.inspection_type = Set(self.inspection_type.clone());
         item.inspection_result = Set(self.inspection_result.clone());
+        item.inspector_name = Set(self.inspector_name.clone());
+        item.note = Set(self.note.clone());
         item.remarks = Set(self.remarks.clone());
         item.sort_order = Set(self.sort_order.unwrap_or(0));
     }

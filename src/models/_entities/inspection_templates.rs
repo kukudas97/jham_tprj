@@ -16,6 +16,8 @@ pub struct Model {
     pub title: String,
     pub inspection_type: String,
     pub inspection_result: Option<String>,
+    pub inspector_name: Option<String>,
+    pub note: Option<String>,
     pub remarks: Option<String>,
     pub sort_order: i32,
     pub deleted_at: Option<DateTimeWithTimeZone>,

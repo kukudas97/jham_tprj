@@ -8,6 +8,7 @@ import type {
 } from '../api/types';
 import * as assetsApi from '../api/assets';
 import * as inspectionTemplatesApi from '../api/inspectionTemplates';
+import InspectionTemplatesModal from './InspectionTemplatesModal';
 
 interface Props {
   assetPid: string;
@@ -36,6 +37,7 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
     inspection?.inspection_result ?? '',
   );
   const [inspectorName, setInspectorName] = useState(inspection?.inspector_name ?? '');
+  const [note, setNote] = useState(inspection?.note ?? '');
   const [inspectionDate, setInspectionDate] = useState(inspection?.inspection_date ?? '');
   const [periodStart, setPeriodStart] = useState(inspection?.period_start ?? '');
   const [periodEnd, setPeriodEnd] = useState(inspection?.period_end ?? '');
@@ -45,10 +47,13 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
 
   const [templates, setTemplates] = useState<InspectionTemplate[]>([]);
   const [selectedTemplateIdx, setSelectedTemplateIdx] = useState('');
+  const [showTemplatesManager, setShowTemplatesManager] = useState(false);
 
-  useEffect(() => {
+  const loadTemplates = () => {
     inspectionTemplatesApi.list().then(setTemplates).catch(() => {});
-  }, []);
+  };
+
+  useEffect(() => { loadTemplates(); }, []);
 
   // ESC 키 닫기
   useEffect(() => {
@@ -65,6 +70,8 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
     if (!tpl) return;
     setInspectionType(tpl.inspection_type);
     setInspectionResult(tpl.inspection_result ?? '');
+    setInspectorName(tpl.inspector_name ?? '');
+    setNote(tpl.note ?? '');
     setRemarks(tpl.remarks ?? '');
   };
 
@@ -85,9 +92,10 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
 
     const params: InspectionParams = {
       inspector_name: inspectorName.trim(),
+      note: note.trim() || undefined,
       inspection_type: inspectionType,
       inspection_result: inspectionResult || undefined,
-      inspection_date: inspectionType === '일반점검' ? inspectionDate || undefined : inspectionDate || undefined,
+      inspection_date: inspectionDate || undefined,
       period_start: inspectionType === '기간점검' ? periodStart || undefined : undefined,
       period_end: inspectionType === '기간점검' ? periodEnd || undefined : undefined,
       remarks: remarks.trim() || undefined,
@@ -109,6 +117,12 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
   };
 
   return (
+    <>
+    {showTemplatesManager && (
+      <InspectionTemplatesModal
+        onClose={() => { setShowTemplatesManager(false); loadTemplates(); }}
+      />
+    )}
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -130,21 +144,28 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* 기본입력사항 선택 */}
-          {templates.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">기본입력사항 선택</label>
-              <select
-                value={selectedTemplateIdx}
-                onChange={handleTemplateSelect}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-500">기본입력사항</label>
+              <button
+                type="button"
+                onClick={() => setShowTemplatesManager(true)}
+                className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline transition-colors"
               >
-                <option value="">선택하면 자동 입력됩니다</option>
-                {templates.map((t, i) => (
-                  <option key={t.pid} value={i}>{t.title}</option>
-                ))}
-              </select>
+                관리
+              </button>
             </div>
-          )}
+            <select
+              value={selectedTemplateIdx}
+              onChange={handleTemplateSelect}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="">{templates.length === 0 ? '저장된 기본입력사항 없음' : '선택하면 자동 입력됩니다'}</option>
+              {templates.map((t, i) => (
+                <option key={t.pid} value={i}>{t.title}</option>
+              ))}
+            </select>
+          </div>
 
           {/* 점검유형 */}
           <div>
@@ -225,6 +246,18 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
             />
           </div>
 
+          {/* 점검내용 */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">점검내용</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              placeholder="점검 내용을 입력하세요"
+            />
+          </div>
+
           {/* 점검결과 */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">점검결과</label>
@@ -283,6 +316,7 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
         </form>
       </div>
     </div>
+    </>
   );
 };
 

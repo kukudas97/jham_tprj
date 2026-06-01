@@ -362,6 +362,7 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                           <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검일자</th>
                           <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검유형</th>
                           <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검결과</th>
+                          <th className="text-left text-gray-400 font-medium pb-2 pr-3">점검내용</th>
                           <th className="text-left text-gray-400 font-medium pb-2">비고</th>
                         </tr>
                       </thead>
@@ -387,7 +388,10 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                                 </span>
                               ) : '-'}
                             </td>
-                            <td className="py-2 text-gray-500 max-w-[100px] truncate">
+                            <td className="py-2 pr-3 text-gray-500 max-w-[80px] truncate">
+                              {ins.note ?? '-'}
+                            </td>
+                            <td className="py-2 text-gray-500 max-w-[80px] truncate">
                               {ins.remarks ?? '-'}
                             </td>
                           </tr>
