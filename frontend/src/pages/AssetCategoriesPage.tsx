@@ -304,6 +304,8 @@ const AssetCategoriesPage: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(null);
   const initialCollapseDone = React.useRef(false);
+  const theadRef = React.useRef<HTMLTableSectionElement>(null);
+  const [serialLeft, setSerialLeft] = useState(184);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -321,6 +323,20 @@ const AssetCategoriesPage: React.FC = () => {
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { assetsApi.list().then(setAllAssets); }, []);
+
+  React.useLayoutEffect(() => {
+    const measure = () => {
+      if (!theadRef.current) return;
+      const ths = theadRef.current.querySelectorAll('th');
+      if (ths.length >= 2) {
+        setSerialLeft((ths[0] as HTMLElement).offsetWidth + (ths[1] as HTMLElement).offsetWidth);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (theadRef.current) ro.observe(theadRef.current);
+    return () => ro.disconnect();
+  }, [assetsInCategory]);
 
   const toggleCollapse = (pid: string) => {
     setCollapsedPids((prev) => {
@@ -741,7 +757,7 @@ const AssetCategoriesPage: React.FC = () => {
         </div>
 
         {/* 오른쪽: 선택된 분류의 자산 목록 */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0">
+        <div className="flex-1 flex flex-col gap-4 min-h-0 min-w-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">
               {selectedCategory ? `"${selectedCategory.name}" 자산 목록` : '분류를 선택하세요'}
@@ -766,8 +782,8 @@ const AssetCategoriesPage: React.FC = () => {
               </div>
             ) : (
               <div className="overflow-auto flex-1 min-h-0">
-                <table className="min-w-full text-sm border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
+                <table className="min-w-full text-sm border-separate border-spacing-0">
+                  <thead ref={theadRef} className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
                     <tr>
                       {/* No. — 고정 */}
                       <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10 sticky left-0 bg-gray-50 z-20">No.</th>
@@ -781,7 +797,8 @@ const AssetCategoriesPage: React.FC = () => {
                       {/* 식별번호 — 고정 + 우측 구분선 */}
                       <th
                         onClick={() => handleSort('serial')}
-                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky left-[11.5rem] bg-gray-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
+                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky bg-gray-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
+                        style={{ left: serialLeft }}
                       >
                         <span className="flex items-center gap-0.5">식별번호{sortIcon('serial')}</span>
                       </th>
@@ -827,7 +844,10 @@ const AssetCategoriesPage: React.FC = () => {
                           </button>
                         </td>
                         {/* 식별번호 — 고정 + 우측 구분선 */}
-                        <td className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap sticky left-[11.5rem] z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]">{asset.serial_number ?? '-'}</td>
+                        <td
+                          className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
+                          style={{ left: serialLeft }}
+                        >{asset.serial_number ?? '-'}</td>
                         {/* 스크롤 컬럼 */}
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
