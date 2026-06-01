@@ -765,8 +765,8 @@ const AssetCategoriesPage: React.FC = () => {
                 이 분류에 자산이 없습니다
               </div>
             ) : (
-              <div className="overflow-y-auto flex-1">
-                <table className="w-full text-sm">
+              <div className="overflow-auto flex-1">
+                <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
                       <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10">No.</th>
