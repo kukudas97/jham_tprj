@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as categoriesApi from '../api/categories';
 import * as assetsApi from '../api/assets';
 import type { Category, Asset, FieldDef } from '../api/types';
+import { isCurrencyField, formatCurrency } from '../utils/format';
 import Layout from '../components/Layout';
 
 interface RequiredFieldsState {
@@ -814,7 +815,9 @@ const AssetCategoriesPage: React.FC = () => {
                         <td className="px-4 py-3 text-gray-500">{asset.manager_name ?? '-'}</td>
                         {customFieldDefs.map((def) => (
                           <td key={def.pid} className="px-4 py-3 text-gray-500">
-                            {getFieldValue(asset, def.field_label) ?? '-'}
+                            {isCurrencyField(def.field_label)
+                              ? formatCurrency(getFieldValue(asset, def.field_label))
+                              : (getFieldValue(asset, def.field_label) ?? '-')}
                           </td>
                         ))}
                       </tr>

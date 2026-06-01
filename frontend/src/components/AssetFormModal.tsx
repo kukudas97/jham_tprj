@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as assetsApi from '../api/assets';
 import * as departmentsApi from '../api/departments';
 import type { Asset, AssetParams, Category, CategoryRequiredFields, Department, FieldDef } from '../api/types';
+import { isCurrencyField, formatCurrency } from '../utils/format';
 
 interface Props {
   editing: Asset | null;
@@ -315,22 +316,31 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
           {activeFieldDefs.length > 0 && (
             <div className="border-t border-gray-100 pt-4 space-y-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">추가 정보</p>
-              {activeFieldDefs.map((def) => (
-                <div key={def.pid}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    {def.field_label}
-                    {def.is_required && <span className="text-red-500 ml-0.5">*</span>}
-                  </label>
-                  <input
-                    type="text"
-                    value={customFieldValues[def.pid] ?? ''}
-                    onChange={(e) =>
-                      setCustomFieldValues((prev) => ({ ...prev, [def.pid]: e.target.value }))
-                    }
-                    className={inputCls(def.is_required && !customFieldValues[def.pid]?.trim())}
-                  />
-                </div>
-              ))}
+              {activeFieldDefs.map((def) => {
+                const isCurrency = isCurrencyField(def.field_label);
+                return (
+                  <div key={def.pid}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {def.field_label}
+                      {def.is_required && <span className="text-red-500 ml-0.5">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode={isCurrency ? 'numeric' : 'text'}
+                      value={isCurrency
+                        ? formatCurrency(customFieldValues[def.pid])
+                        : (customFieldValues[def.pid] ?? '')}
+                      onChange={(e) => {
+                        const raw = isCurrency
+                          ? e.target.value.replace(/,/g, '')
+                          : e.target.value;
+                        setCustomFieldValues((prev) => ({ ...prev, [def.pid]: raw }));
+                      }}
+                      className={inputCls(def.is_required && !customFieldValues[def.pid]?.trim())}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 

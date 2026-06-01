@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
 import type { Asset, Category, Inspection, QrCode } from '../api/types';
+import { isCurrencyField, formatCurrency } from '../utils/format';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
 
@@ -249,14 +250,22 @@ const AssetDetailPage: React.FC = () => {
                         return (
                           <div key={def.pid} className="bg-gray-50 rounded-xl p-3">
                             <dt className="text-xs text-gray-400 mb-1">{def.field_label}</dt>
-                            <dd className="text-gray-800 font-medium">{saved?.value ?? '-'}</dd>
+                            <dd className="text-gray-800 font-medium">
+                              {isCurrencyField(def.field_label)
+                                ? formatCurrency(saved?.value)
+                                : (saved?.value ?? '-')}
+                            </dd>
                           </div>
                         );
                       })
                     : asset.field_values.map((fv) => (
                         <div key={fv.field_def_pid} className="bg-gray-50 rounded-xl p-3">
                           <dt className="text-xs text-gray-400 mb-1">{fv.field_label}</dt>
-                          <dd className="text-gray-800 font-medium">{fv.value ?? '-'}</dd>
+                          <dd className="text-gray-800 font-medium">
+                            {isCurrencyField(fv.field_label)
+                              ? formatCurrency(fv.value)
+                              : (fv.value ?? '-')}
+                          </dd>
                         </div>
                       ))}
                   <div className="col-span-2 border-t border-gray-100 pt-3 mt-1">
