@@ -411,6 +411,8 @@ async fn do_parse_and_insert(
                 None
             };
 
+            let manager_name_opt = get_str(row, manager_col);
+
             // 동일 식별번호 자산 조회 → 있으면 업데이트, 없으면 신규 등록
             let asset =
                 if let Some(existing) = find_asset_by_serial(db, &id_number, company_id).await? {
@@ -420,6 +422,7 @@ async fn do_parse_and_insert(
                     active.category_id = Set(Some(assigned_cat.id));
                     active.department_id = Set(Some(dept.id));
                     active.team_id = Set(team_id);
+                    active.manager_name = Set(manager_name_opt);
                     active.update(db).await.map_err(|e| format!("DB 업데이트 실패: {}", e))?
                 } else {
                     assets::ActiveModel {
@@ -431,30 +434,13 @@ async fn do_parse_and_insert(
                         category_id: Set(Some(assigned_cat.id)),
                         department_id: Set(Some(dept.id)),
                         team_id: Set(team_id),
+                        manager_name: Set(manager_name_opt),
                         ..Default::default()
                     }
                     .insert(db)
                     .await
                     .map_err(|e| format!("DB 저장 실패: {}", e))?
                 };
-
-            // 팀명, 관리자 → 커스텀 필드 자동 생성 후 upsert
-            for (val_opt, label) in [
-                (get_str(row, team_col), "팀명"),
-                (get_str(row, manager_col), "관리자"),
-            ] {
-                if let Some(val) = val_opt {
-                    let def = find_or_create_field_def(
-                        db,
-                        &mut all_defs,
-                        label,
-                        &parent_cat,
-                        company_id,
-                    )
-                    .await?;
-                    upsert_field_value(db, asset.id, def.id, val).await?;
-                }
-            }
 
             // 식별번호 이후 추가 컬럼 → 커스텀 필드 값 upsert
             for (col_idx, field_def) in &extra_field_defs {
