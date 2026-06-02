@@ -344,15 +344,24 @@ pub async fn remove(
 ) -> Result<Response> {
     let company_id = get_company_id(&auth, &ctx).await?;
     let asset = Model::find_by_pid_and_company(&ctx.db, &pid, company_id).await?;
+    let asset_id = asset.id;
 
-    // QR 코드 먼저 삭제
-    if let Some(qr) = qr_codes::Model::find_by_asset(&ctx.db, asset.id).await? {
+    // QR 코드 삭제 (파일 포함)
+    if let Some(qr) = qr_codes::Model::find_by_asset(&ctx.db, asset_id).await? {
+        let _ = std::fs::remove_file(&qr.image_path);
         qr.into_active_model().delete(&ctx.db).await?;
     }
 
-    let mut item = asset.into_active_model();
-    item.deleted_at = Set(Some(chrono::Utc::now().into()));
-    item.update(&ctx.db).await?;
+    // 사진 파일 삭제
+    if let Some(ref photo_path) = asset.photo_path {
+        let _ = std::fs::remove_file(photo_path);
+    }
+
+    // 점검 이력 삭제
+    asset_inspections::Model::delete_by_asset(&ctx.db, asset_id).await?;
+
+    // 자산 하드 삭제 (asset_field_values는 FK CASCADE로 자동 삭제)
+    asset.into_active_model().delete(&ctx.db).await?;
     format::empty()
 }
 

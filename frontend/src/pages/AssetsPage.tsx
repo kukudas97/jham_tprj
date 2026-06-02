@@ -230,6 +230,8 @@ const AssetsPage: React.FC = () => {
   const [filterTeamPids, setFilterTeamPids] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(null);
+  const [deletingPids, setDeletingPids] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
 
   const fetchAll = async () => {
@@ -271,16 +273,26 @@ const AssetsPage: React.FC = () => {
 
   const handleDelete = async (pid: string) => {
     if (!confirm('이 자산을 삭제하시겠습니까?')) return;
-    await assetsApi.remove(pid);
-    fetchAll();
+    setDeletingPids((prev) => new Set(prev).add(pid));
+    try {
+      await assetsApi.remove(pid);
+      fetchAll();
+    } finally {
+      setDeletingPids((prev) => { const next = new Set(prev); next.delete(pid); return next; });
+    }
   };
 
   const handleBulkDelete = async () => {
     if (selectedPids.size === 0) return;
     if (!confirm(`선택한 ${selectedPids.size}개의 자산을 삭제하시겠습니까?`)) return;
-    await Promise.all([...selectedPids].map((pid) => assetsApi.remove(pid)));
-    setSelectedPids(new Set());
-    fetchAll();
+    setBulkDeleting(true);
+    try {
+      await Promise.all([...selectedPids].map((pid) => assetsApi.remove(pid)));
+      setSelectedPids(new Set());
+      fetchAll();
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const getFieldValue = (asset: Asset, label: string) =>
@@ -447,14 +459,22 @@ const AssetsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleBulkDelete}
-                className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-sm font-medium rounded-xl hover:bg-red-100 transition-colors shadow-sm"
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-sm font-medium rounded-xl hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
                 title={`선택한 ${selectedPids.size}개 삭제`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span>{selectedPids.size}개 삭제</span>
+                {bulkDeleting ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+                <span>{bulkDeleting ? '삭제 중...' : `${selectedPids.size}개 삭제`}</span>
               </button>
             )}
             <button
@@ -728,13 +748,21 @@ const AssetsPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleDelete(asset.pid)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              disabled={deletingPids.has(asset.pid)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg transition-colors"
                               title="삭제"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              {deletingPids.has(asset.pid) ? (
+                                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         </td>
@@ -810,12 +838,20 @@ const AssetsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDelete(asset.pid)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          disabled={deletingPids.has(asset.pid)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg transition-colors"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                          {deletingPids.has(asset.pid) ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          )}
                         </button>
                       </div>
                     </div>

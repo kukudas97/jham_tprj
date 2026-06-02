@@ -33,6 +33,14 @@ pub struct InspectionWithAsset {
 }
 
 impl Model {
+    pub async fn delete_by_asset(db: &DatabaseConnection, asset_id: i32) -> ModelResult<()> {
+        asset_inspections::Entity::delete_many()
+            .filter(asset_inspections::Column::AssetId.eq(asset_id))
+            .exec(db)
+            .await?;
+        Ok(())
+    }
+
     pub async fn find_all_by_asset(
         db: &DatabaseConnection,
         asset_id: i32,

@@ -226,22 +226,37 @@ const UploadPage: React.FC = () => {
 
         {/* 드래그 앤 드롭 영역 */}
         <div
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-            dragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'
+          className={`relative border-2 border-dashed rounded-xl p-10 text-center transition-colors ${
+            uploading
+              ? 'border-indigo-300 bg-indigo-50/50 cursor-not-allowed'
+              : dragging
+              ? 'border-indigo-500 bg-indigo-50 cursor-pointer'
+              : 'border-gray-300 hover:border-gray-400 cursor-pointer'
           }`}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => { if (!uploading) { e.preventDefault(); setDragging(true); } }}
           onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => fileRef.current?.click()}
+          onDrop={(e) => { if (!uploading) onDrop(e); }}
+          onClick={() => { if (!uploading) fileRef.current?.click(); }}
         >
-          <svg className="w-10 h-10 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          <p className="text-sm font-medium text-gray-700">
-            {uploading ? '업로드 중...' : '클릭하거나 파일을 드래그하세요'}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">.xlsx 파일</p>
+          {uploading ? (
+            <>
+              <svg className="w-10 h-10 text-indigo-400 mx-auto mb-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <p className="text-sm font-medium text-indigo-600">업로드 중...</p>
+              <p className="text-xs text-indigo-400 mt-1">잠시만 기다려 주세요</p>
+            </>
+          ) : (
+            <>
+              <svg className="w-10 h-10 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p className="text-sm font-medium text-gray-700">클릭하거나 파일을 드래그하세요</p>
+              <p className="text-xs text-gray-400 mt-1">.xlsx 파일</p>
+            </>
+          )}
           <input
             ref={fileRef}
             type="file"
