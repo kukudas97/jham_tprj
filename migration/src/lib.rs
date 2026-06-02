@@ -24,6 +24,7 @@ mod m20260601_200000_extend_asset_inspections;
 mod m20260601_210000_inspection_templates;
 mod m20260601_220000_add_note_to_inspection_templates;
 mod m20260601_230000_add_inspector_name_to_inspection_templates;
+mod m20260602_000001_fix_serial_number_partial_unique;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -52,6 +53,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260601_210000_inspection_templates::Migration),
             Box::new(m20260601_220000_add_note_to_inspection_templates::Migration),
             Box::new(m20260601_230000_add_inspector_name_to_inspection_templates::Migration),
+            Box::new(m20260602_000001_fix_serial_number_partial_unique::Migration),
             // inject-above (do not remove this comment)
         ]
     }
