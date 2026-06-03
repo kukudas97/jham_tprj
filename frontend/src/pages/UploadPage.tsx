@@ -19,6 +19,7 @@ async function downloadTemplate(_categories: Category[]) {
     { header: '관리자', key: 'manager', width: 12, required: false },
     { header: '품명', key: 'product', width: 24, required: true },
     { header: '식별번호', key: 'idNum', width: 20, required: true },
+    { header: '평가금액', key: 'appraisedValue', width: 18, required: true },
   ];
 
   // 예시 시트 1개만 생성 — 시트명을 대분류 이름으로 변경하여 사용
@@ -160,6 +161,7 @@ const UploadPage: React.FC = () => {
                   ['관리자', '선택', '담당자 이름 (자산의 관리자 필드로 저장됨)'],
                   ['품명', '필수', '자산 품명 (구체적인 모델/제품명)'],
                   ['식별번호', '필수', '자산 고유 식별번호 (시리얼, 자산번호 등)'],
+                  ['평가금액', '필수', '자산 평가금액 (숫자만 입력, 예: 1500000)'],
                 ].map(([col, req, desc]) => (
                   <tr key={col} className="border-b border-blue-100 last:border-0">
                     <td className="py-1.5 pr-4 font-bold">{col}</td>
@@ -213,10 +215,10 @@ const UploadPage: React.FC = () => {
                   이미 존재하는 필드명이면 기존 필드를 그대로 사용합니다.
                 </p>
                 <div className="bg-amber-100 rounded-lg px-3 py-2 font-mono text-xs text-amber-900">
-                  자산명 | 부서명 | 팀명 | 관리자 | 품명 | 식별번호 |{' '}
+                  자산명 | 부서명 | 팀명 | 관리자 | 품명 | 식별번호 | 평가금액 |{' '}
                   <span className="text-indigo-700 font-bold">구매일자 | 제조사 | 보증기간</span>
                   <span className="block mt-1 text-amber-600 font-sans not-italic">
-                    ↑ 식별번호 뒤 컬럼 → 커스텀 필드 자동 생성
+                    ↑ 평가금액 뒤 컬럼 → 커스텀 필드 자동 생성
                   </span>
                 </div>
               </div>

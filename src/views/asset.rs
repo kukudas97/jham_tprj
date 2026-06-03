@@ -28,6 +28,7 @@ pub struct AssetResponse {
     pub team_pid: Option<Uuid>,
     pub team_name: Option<String>,
     pub manager_name: Option<String>,
+    pub appraised_value: i64,
     pub field_values: Vec<FieldValueResponse>,
     pub photo_url: Option<String>,
 }
@@ -60,6 +61,7 @@ impl AssetResponse {
             team_pid: team.map(|t| t.pid),
             team_name: team.map(|t| t.name.clone()),
             manager_name: asset.manager_name,
+            appraised_value: asset.appraised_value,
             field_values,
             photo_url,
         }

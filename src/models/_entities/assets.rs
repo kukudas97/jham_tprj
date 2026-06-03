@@ -22,6 +22,7 @@ pub struct Model {
     pub department_id: Option<i32>,
     pub team_id: Option<i32>,
     pub manager_name: Option<String>,
+    pub appraised_value: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

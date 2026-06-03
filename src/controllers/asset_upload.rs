@@ -284,15 +284,22 @@ async fn do_parse_and_insert(
         let v_asset = col_idx("자산명");
         let v_dept = col_idx("부서명");
         let v_id = col_idx("식별번호");
+        let v_amount = col_idx("평가금액");
 
         // 필수 컬럼 존재 여부 확인
-        for (col_opt, label) in [(v_product, "품명"), (v_asset, "자산명"), (v_dept, "부서명"), (v_id, "식별번호")] {
+        for (col_opt, label) in [
+            (v_product, "품명"),
+            (v_asset, "자산명"),
+            (v_dept, "부서명"),
+            (v_id, "식별번호"),
+            (v_amount, "평가금액"),
+        ] {
             if col_opt.is_none() {
                 validation_errors.push(format!("'{}' 시트: '{}' 컬럼이 없습니다.", sheet_name, label));
             }
         }
         // 컬럼 자체가 없으면 행 검증 불필요
-        if v_product.is_none() || v_asset.is_none() || v_dept.is_none() || v_id.is_none() {
+        if v_product.is_none() || v_asset.is_none() || v_dept.is_none() || v_id.is_none() || v_amount.is_none() {
             continue;
         }
 
@@ -302,9 +309,10 @@ async fn do_parse_and_insert(
             let an = get_str(row, v_asset);
             let dn = get_str(row, v_dept);
             let id = get_str(row, v_id);
+            let am = get_str(row, v_amount);
 
-            // 4개 필수값 모두 비어있으면 빈 행 → 스킵
-            if pn.is_none() && an.is_none() && dn.is_none() && id.is_none() {
+            // 5개 필수값 모두 비어있으면 빈 행 → 스킵
+            if pn.is_none() && an.is_none() && dn.is_none() && id.is_none() && am.is_none() {
                 continue;
             }
             // 하나라도 값이 있으면 나머지 필수값도 있어야 함
@@ -319,6 +327,17 @@ async fn do_parse_and_insert(
             }
             if id.is_none() {
                 validation_errors.push(format!("'{}' 시트 {}행: '식별번호'가 없습니다.", sheet_name, row_num));
+            }
+            if am.is_none() {
+                validation_errors.push(format!("'{}' 시트 {}행: '평가금액'이 없습니다.", sheet_name, row_num));
+            } else if let Some(ref s) = am {
+                let cleaned = s.replace(',', "");
+                if cleaned.parse::<i64>().is_err() {
+                    validation_errors.push(format!(
+                        "'{}' 시트 {}행: '평가금액'이 숫자가 아닙니다 (입력값: {}).",
+                        sheet_name, row_num, s
+                    ));
+                }
             }
         }
     }
@@ -353,7 +372,7 @@ async fn do_parse_and_insert(
             .map_err(|e| format!("팀 조회 실패: {}", e))?;
 
     // 고정 컬럼 이름 집합 (식별번호 이후 추가 컬럼 판별용)
-    const FIXED_COLS: &[&str] = &["자산명", "부서명", "팀명", "관리자", "품명", "식별번호"];
+    const FIXED_COLS: &[&str] = &["자산명", "부서명", "팀명", "관리자", "품명", "식별번호", "평가금액"];
 
     let mut total_count = 0usize;
 
@@ -389,6 +408,8 @@ async fn do_parse_and_insert(
             .ok_or_else(|| format!("'{}' 시트: '식별번호' 컬럼이 없습니다.", sheet_name))?;
         let dept_col = col_index("부서명")
             .ok_or_else(|| format!("'{}' 시트: '부서명' 컬럼이 없습니다.", sheet_name))?;
+        let amount_col = col_index("평가금액")
+            .ok_or_else(|| format!("'{}' 시트: '평가금액' 컬럼이 없습니다.", sheet_name))?;
         let team_col = col_index("팀명");
         let manager_col = col_index("관리자");
 
@@ -434,6 +455,20 @@ async fn do_parse_and_insert(
                 Some(v) => v,
                 None => continue,
             };
+
+            // 평가금액(필수)
+            let appraised_value = get_str(row, Some(amount_col))
+                .ok_or_else(|| {
+                    format!("'{}' 시트 {}행: '평가금액'이 없습니다.", sheet_name, row_num)
+                })
+                .and_then(|s| {
+                    s.replace(',', "").parse::<i64>().map_err(|_| {
+                        format!(
+                            "'{}' 시트 {}행: '평가금액'이 숫자가 아닙니다 (입력값: {}).",
+                            sheet_name, row_num, s
+                        )
+                    })
+                })?;
 
             // 자산명(필수) → 소분류 찾기/생성
             let asset_name_val = get_str(row, Some(asset_name_col)).ok_or_else(|| {
@@ -496,6 +531,7 @@ async fn do_parse_and_insert(
                     active.department_id = Set(Some(dept.id));
                     active.team_id = Set(team_id);
                     active.manager_name = Set(manager_name_opt);
+                    active.appraised_value = Set(appraised_value);
                     active.update(db).await.map_err(|e| format!("DB 업데이트 실패: {}", e))?
                 } else {
                     assets::ActiveModel {
@@ -508,6 +544,7 @@ async fn do_parse_and_insert(
                         department_id: Set(Some(dept.id)),
                         team_id: Set(team_id),
                         manager_name: Set(manager_name_opt),
+                        appraised_value: Set(appraised_value),
                         ..Default::default()
                     }
                     .insert(db)
