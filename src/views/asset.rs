@@ -6,6 +6,46 @@ use crate::models::_entities::assets::Model;
 use crate::models::_entities::departments;
 use crate::models::_entities::teams;
 
+// ─── Summary response types ───────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct TeamValueSummary {
+    pub team_name: Option<String>,
+    pub asset_count: i64,
+    pub total_appraised_value: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DepartmentValueSummary {
+    pub department_name: Option<String>,
+    pub asset_count: i64,
+    pub total_appraised_value: i64,
+    pub teams: Vec<TeamValueSummary>,
+}
+
+#[derive(Debug, Serialize, Clone, Copy)]
+pub struct CategoryCell {
+    pub count: i64,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeptCategoryRow {
+    pub department_name: Option<String>,
+    pub cells: Vec<CategoryCell>,
+    pub total_count: i64,
+    pub total_value: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CategoryByDeptResponse {
+    pub categories: Vec<Option<String>>,
+    pub rows: Vec<DeptCategoryRow>,
+    pub col_totals: Vec<CategoryCell>,
+    pub grand_total_count: i64,
+    pub grand_total_value: i64,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FieldValueResponse {
     pub field_def_pid: Uuid,

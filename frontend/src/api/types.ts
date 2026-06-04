@@ -159,3 +159,38 @@ export interface Department {
   name: string;
   teams: Team[];
 }
+
+// ─── 통계 리포트 ──────────────────────────────────────────────────────────────
+
+export interface TeamValueSummary {
+  team_name: string | null;
+  asset_count: number;
+  total_appraised_value: number;
+}
+
+export interface DepartmentValueSummary {
+  department_name: string | null;
+  asset_count: number;
+  total_appraised_value: number;
+  teams: TeamValueSummary[];
+}
+
+export interface CategoryCell {
+  count: number;
+  total: number;
+}
+
+export interface DeptCategoryRow {
+  department_name: string | null;
+  cells: CategoryCell[];
+  total_count: number;
+  total_value: number;
+}
+
+export interface CategoryByDeptResponse {
+  categories: (string | null)[];
+  rows: DeptCategoryRow[];
+  col_totals: CategoryCell[];
+  grand_total_count: number;
+  grand_total_value: number;
+}

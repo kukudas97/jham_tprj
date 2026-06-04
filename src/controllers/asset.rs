@@ -555,6 +555,179 @@ pub async fn upload_photo(
     format::json(AssetResponse::new(updated, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
+// ─── 통계: 부서/팀별 평가금액 합계 ────────────────────────────────────────────
+#[debug_handler]
+pub async fn dept_value_summary(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+) -> Result<Response> {
+    use sea_orm::{DbBackend, FromQueryResult, Statement};
+    use crate::views::asset::{DepartmentValueSummary, TeamValueSummary};
+
+    let company_id = get_company_id(&auth, &ctx).await?;
+
+    #[derive(Debug, FromQueryResult)]
+    struct Row {
+        department_name: Option<String>,
+        team_name: Option<String>,
+        asset_count: i64,
+        total_appraised_value: i64,
+    }
+
+    let rows = Row::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+            SELECT
+                d.name AS department_name,
+                t.name AS team_name,
+                COUNT(a.id)::bigint AS asset_count,
+                COALESCE(SUM(a.appraised_value), 0)::bigint AS total_appraised_value
+            FROM assets a
+            LEFT JOIN departments d ON a.department_id = d.id
+            LEFT JOIN teams t ON a.team_id = t.id
+            WHERE a.company_id = $1 AND a.deleted_at IS NULL
+            GROUP BY d.name, t.name
+            ORDER BY d.name NULLS LAST, t.name NULLS LAST
+        "#,
+        [company_id.into()],
+    ))
+    .all(&ctx.db)
+    .await?;
+
+    let mut result: Vec<DepartmentValueSummary> = Vec::new();
+    for row in rows {
+        if let Some(last) = result.last_mut() {
+            if last.department_name == row.department_name {
+                last.asset_count += row.asset_count;
+                last.total_appraised_value += row.total_appraised_value;
+                last.teams.push(TeamValueSummary {
+                    team_name: row.team_name,
+                    asset_count: row.asset_count,
+                    total_appraised_value: row.total_appraised_value,
+                });
+                continue;
+            }
+        }
+        result.push(DepartmentValueSummary {
+            department_name: row.department_name.clone(),
+            asset_count: row.asset_count,
+            total_appraised_value: row.total_appraised_value,
+            teams: vec![TeamValueSummary {
+                team_name: row.team_name,
+                asset_count: row.asset_count,
+                total_appraised_value: row.total_appraised_value,
+            }],
+        });
+    }
+
+    format::json(result)
+}
+
+// ─── 통계: 부서별 자산분류 합계 ───────────────────────────────────────────────
+#[debug_handler]
+pub async fn category_by_dept_summary(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+) -> Result<Response> {
+    use sea_orm::{DbBackend, FromQueryResult, Statement};
+    use std::collections::{HashMap, HashSet};
+    use crate::views::asset::{CategoryByDeptResponse, CategoryCell, DeptCategoryRow};
+
+    let company_id = get_company_id(&auth, &ctx).await?;
+
+    #[derive(Debug, FromQueryResult)]
+    struct Row {
+        department_name: Option<String>,
+        category_name: Option<String>,
+        asset_count: i64,
+        total_appraised_value: i64,
+    }
+
+    let rows = Row::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+            SELECT
+                d.name AS department_name,
+                c.name AS category_name,
+                COUNT(a.id)::bigint AS asset_count,
+                COALESCE(SUM(a.appraised_value), 0)::bigint AS total_appraised_value
+            FROM assets a
+            LEFT JOIN departments d ON a.department_id = d.id
+            LEFT JOIN asset_categories c ON a.category_id = c.id
+            WHERE a.company_id = $1 AND a.deleted_at IS NULL
+            GROUP BY d.name, c.name
+            ORDER BY d.name NULLS LAST, c.name NULLS LAST
+        "#,
+        [company_id.into()],
+    ))
+    .all(&ctx.db)
+    .await?;
+
+    // Collect unique categories (sorted)
+    let mut seen_cats: HashSet<Option<String>> = HashSet::new();
+    let mut all_categories: Vec<Option<String>> = Vec::new();
+    for row in &rows {
+        if seen_cats.insert(row.category_name.clone()) {
+            all_categories.push(row.category_name.clone());
+        }
+    }
+    all_categories.sort_by(|a, b| match (a, b) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, _) => std::cmp::Ordering::Greater,
+        (_, None) => std::cmp::Ordering::Less,
+        (Some(x), Some(y)) => x.cmp(y),
+    });
+
+    // Build pivot: dept → category → (count, value)
+    let mut dept_order: Vec<Option<String>> = Vec::new();
+    let mut dept_seen: HashSet<Option<String>> = HashSet::new();
+    let mut pivot: HashMap<Option<String>, HashMap<Option<String>, (i64, i64)>> = HashMap::new();
+    for row in rows {
+        if dept_seen.insert(row.department_name.clone()) {
+            dept_order.push(row.department_name.clone());
+        }
+        let e = pivot
+            .entry(row.department_name)
+            .or_default()
+            .entry(row.category_name)
+            .or_insert((0, 0));
+        e.0 += row.asset_count;
+        e.1 += row.total_appraised_value;
+    }
+
+    let dept_rows: Vec<DeptCategoryRow> = dept_order
+        .into_iter()
+        .map(|dept_name| {
+            let cat_map = pivot.get(&dept_name).cloned().unwrap_or_default();
+            let cells: Vec<CategoryCell> = all_categories
+                .iter()
+                .map(|cat| {
+                    let (count, total) = cat_map.get(cat).copied().unwrap_or((0, 0));
+                    CategoryCell { count, total }
+                })
+                .collect();
+            let total_count = cells.iter().map(|c| c.count).sum();
+            let total_value = cells.iter().map(|c| c.total).sum();
+            DeptCategoryRow { department_name: dept_name, cells, total_count, total_value }
+        })
+        .collect();
+
+    let col_totals: Vec<CategoryCell> = (0..all_categories.len())
+        .map(|i| CategoryCell {
+            count: dept_rows.iter().map(|r| r.cells[i].count).sum(),
+            total: dept_rows.iter().map(|r| r.cells[i].total).sum(),
+        })
+        .collect();
+
+    format::json(CategoryByDeptResponse {
+        grand_total_count: dept_rows.iter().map(|r| r.total_count).sum(),
+        grand_total_value: dept_rows.iter().map(|r| r.total_value).sum(),
+        categories: all_categories,
+        rows: dept_rows,
+        col_totals,
+    })
+}
+
 pub async fn serve_photo(Path(filename): Path<String>) -> impl IntoResponse {
     let safe_name = filename.replace("..", "").replace('/', "");
     let path = format!("uploads/photos/{}", safe_name);
@@ -587,6 +760,8 @@ pub fn routes() -> Routes {
         .add("public/{pid}", get(get_public))
         .add("public/{pid}/inspect", post(add_public_inspection))
         .add("photo/{filename}", get(serve_photo))
+        .add("summary/department-values", get(dept_value_summary))
+        .add("summary/category-by-department", get(category_by_dept_summary))
         .add("/", get(list))
         .add("/", post(add))
         .add("{pid}", get(get_one))

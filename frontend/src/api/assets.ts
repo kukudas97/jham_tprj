@@ -1,5 +1,13 @@
 import client from './client';
-import type { Asset, AssetParams, Inspection, InspectionParams, QrCode } from './types';
+import type {
+  Asset,
+  AssetParams,
+  CategoryByDeptResponse,
+  DepartmentValueSummary,
+  Inspection,
+  InspectionParams,
+  QrCode,
+} from './types';
 
 export const list = () => client.get<Asset[]>('/assets').then((r) => r.data);
 
@@ -43,3 +51,9 @@ export const addPublicInspection = (pid: string, inspector_name: string, note?: 
   client
     .post<Inspection>(`/assets/public/${pid}/inspect`, { inspector_name, note })
     .then((r) => r.data);
+
+export const getDeptValueSummary = () =>
+  client.get<DepartmentValueSummary[]>('/assets/summary/department-values').then((r) => r.data);
+
+export const getCategoryByDeptSummary = () =>
+  client.get<CategoryByDeptResponse>('/assets/summary/category-by-department').then((r) => r.data);
