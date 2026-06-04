@@ -581,15 +581,16 @@ pub async fn dept_team_category_summary(
             SELECT
                 d.name AS department_name,
                 t.name AS team_name,
-                c.name AS category_name,
+                COALESCE(pc.name, c.name) AS category_name,
                 COALESCE(SUM(a.appraised_value), 0)::bigint AS total_appraised_value
             FROM assets a
             LEFT JOIN departments d ON a.department_id = d.id
             LEFT JOIN teams t ON a.team_id = t.id
             LEFT JOIN asset_categories c ON a.category_id = c.id
+            LEFT JOIN asset_categories pc ON c.parent_id = pc.id
             WHERE a.company_id = $1 AND a.deleted_at IS NULL
-            GROUP BY d.name, t.name, c.name
-            ORDER BY d.name NULLS LAST, t.name NULLS LAST, c.name NULLS LAST
+            GROUP BY d.name, t.name, COALESCE(pc.name, c.name)
+            ORDER BY d.name NULLS LAST, t.name NULLS LAST, COALESCE(pc.name, c.name) NULLS LAST
         "#,
         [company_id.into()],
     ))

@@ -27,21 +27,26 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
     if (catAssets.length === 0) continue;
 
     const fieldDefs = parent.field_defs ?? [];
-    const qrColNum = 5 + fieldDefs.length + 1;
+    const BASE_COLS = 9; // 순번,자산명,품명,식별번호,부서명,팀명,담당자,위치,평가금액
+    const qrColNum = BASE_COLS + fieldDefs.length + 1;
 
     const sheet = workbook.addWorksheet(parent.name.slice(0, 31));
     sheet.columns = [
       { key: 'idx', width: 6 },
-      { key: 'asset_name', width: 14 },
       { key: 'name', width: 22 },
+      { key: 'category', width: 16 },
       { key: 'serial', width: 20 },
+      { key: 'dept', width: 16 },
+      { key: 'team', width: 16 },
+      { key: 'manager', width: 14 },
       { key: 'location', width: 16 },
+      { key: 'appraised', width: 16 },
       ...fieldDefs.map((def) => ({ key: `field_${def.pid}`, width: 16 })),
       ...(includeQr ? [{ key: 'qr', width: 13 }] : []),
     ];
 
     const headers = [
-      '순번', '자산명', '품명', '식별번호', '부서명',
+      '순번', '자산명', '품명', '식별번호', '부서명', '팀명', '담당자', '위치', '평가금액',
       ...fieldDefs.map((def) => def.field_label),
       ...(includeQr ? ['QR코드'] : []),
     ];
@@ -64,10 +69,14 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
       });
       const row = sheet.addRow([
         i + 1,
-        asset.category_name ?? '',
         asset.name,
+        asset.category_name ?? '',
         asset.serial_number ?? '',
+        asset.department_name ?? '',
+        asset.team_name ?? '',
+        asset.manager_name ?? '',
         asset.location ?? '',
+        asset.appraised_value || null,
         ...customValues,
         ...(includeQr ? [''] : []),
       ]);
@@ -82,6 +91,10 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
       row.eachCell((cell, col) => {
         cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left' };
         cell.border = { bottom: BORDER, right: BORDER };
+        if (col === 9) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
       });
 
       if (includeQr) {
