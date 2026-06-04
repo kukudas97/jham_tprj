@@ -504,6 +504,10 @@ const AssetCategoriesPage: React.FC = () => {
       else if (sortConfig.key === 'department') { av = a.department_name ?? ''; bv = b.department_name ?? ''; }
       else if (sortConfig.key === 'team') { av = a.team_name ?? ''; bv = b.team_name ?? ''; }
       else if (sortConfig.key === 'manager') { av = a.manager_name ?? ''; bv = b.manager_name ?? ''; }
+      else if (sortConfig.key === 'appraised_value') {
+        const cmp = (a.appraised_value ?? 0) - (b.appraised_value ?? 0);
+        return sortConfig.dir === 'asc' ? cmp : -cmp;
+      }
       else {
         av = a.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
         bv = b.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
@@ -807,6 +811,7 @@ const AssetCategoriesPage: React.FC = () => {
                         { key: 'department', label: '부서명' },
                         { key: 'team', label: '팀명' },
                         { key: 'manager', label: '관리자' },
+                        { key: 'appraised_value', label: '평가금액' },
                       ].map(({ key, label }) => (
                         <th
                           key={key}
@@ -852,6 +857,11 @@ const AssetCategoriesPage: React.FC = () => {
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.manager_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-right">
+                          {asset.appraised_value > 0
+                            ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
+                            : '-'}
+                        </td>
                         {customFieldDefs.map((def) => (
                           <td key={def.pid} className="px-4 py-3 text-gray-500 whitespace-nowrap">
                             {isCurrencyField(def.field_label)

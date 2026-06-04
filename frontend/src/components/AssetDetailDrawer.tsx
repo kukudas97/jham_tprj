@@ -241,6 +241,14 @@ const AssetDetailDrawer: React.FC<Props> = ({ pid, onClose, onSaved }) => {
                       <dt className="text-xs text-gray-400 mb-1">관리자</dt>
                       <dd className="text-gray-800 font-medium">{asset.manager_name ?? '-'}</dd>
                     </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <dt className="text-xs text-gray-400 mb-1">평가금액</dt>
+                      <dd className="text-gray-800 font-medium">
+                        {asset.appraised_value > 0
+                          ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
+                          : '-'}
+                      </dd>
+                    </div>
                     {asset.location && (
                       <div className="bg-gray-50 rounded-xl p-3">
                         <dt className="text-xs text-gray-400 mb-1">위치</dt>

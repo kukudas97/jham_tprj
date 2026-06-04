@@ -35,6 +35,7 @@ export interface Asset {
   team_pid: string | null;
   team_name: string | null;
   manager_name: string | null;
+  appraised_value: number;
   field_values: FieldValue[];
   photo_url: string | null;
 }

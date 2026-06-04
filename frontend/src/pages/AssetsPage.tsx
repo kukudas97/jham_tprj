@@ -367,6 +367,10 @@ const AssetsPage: React.FC = () => {
       }
       else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
       else if (sortConfig.key === 'location') { av = a.location ?? ''; bv = b.location ?? ''; }
+      else if (sortConfig.key === 'appraised_value') {
+        const cmp = (a.appraised_value ?? 0) - (b.appraised_value ?? 0);
+        return sortConfig.dir === 'asc' ? cmp : -cmp;
+      }
       else {
         const fv = (x: Asset) =>
           x.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
@@ -678,6 +682,7 @@ const AssetsPage: React.FC = () => {
                       { key: 'location', label: '부서명', cls: 'hidden lg:table-cell' },
                       { key: '팀명', label: '팀명', cls: 'hidden lg:table-cell' },
                       { key: '관리자', label: '관리자', cls: 'hidden lg:table-cell' },
+                      { key: 'appraised_value', label: '평가금액', cls: 'hidden lg:table-cell' },
                     ].map(({ key, label, cls }) => (
                       <th
                         key={key}
@@ -732,6 +737,11 @@ const AssetsPage: React.FC = () => {
                         <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.department_name ?? '-'}</td>
                         <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.team_name ?? '-'}</td>
                         <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.manager_name ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell text-right">
+                          {asset.appraised_value > 0
+                            ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
+                            : '-'}
+                        </td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -879,6 +889,11 @@ const AssetsPage: React.FC = () => {
                       {asset.manager_name && (
                         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                           {asset.manager_name}
+                        </span>
+                      )}
+                      {asset.appraised_value > 0 && (
+                        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-medium">
+                          {asset.appraised_value.toLocaleString('ko-KR')}원
                         </span>
                       )}
                     </div>

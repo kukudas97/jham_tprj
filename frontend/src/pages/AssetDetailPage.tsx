@@ -238,6 +238,14 @@ const AssetDetailPage: React.FC = () => {
                     <dt className="text-xs text-gray-400 mb-1">부서명</dt>
                     <dd className="text-gray-800 font-medium">{asset.location ?? '-'}</dd>
                   </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <dt className="text-xs text-gray-400 mb-1">평가금액</dt>
+                    <dd className="text-gray-800 font-medium">
+                      {asset.appraised_value > 0
+                        ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
+                        : '-'}
+                    </dd>
+                  </div>
                   {asset.note && (
                     <div className="col-span-2 bg-gray-50 rounded-xl p-3">
                       <dt className="text-xs text-gray-400 mb-1">비고</dt>
