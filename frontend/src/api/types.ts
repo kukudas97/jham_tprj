@@ -162,6 +162,50 @@ export interface Department {
 
 // ─── 통계 리포트 ──────────────────────────────────────────────────────────────
 
+// Image 1: 부서/팀 행 × 자산분류 열 (평가금액)
+export interface TeamCatEntry {
+  team_name: string | null;
+  values: number[];
+  total: number;
+}
+
+export interface DeptCatEntry {
+  department_name: string | null;
+  subtotal: number[];
+  grand_total: number;
+  teams: TeamCatEntry[];
+}
+
+export interface DeptTeamCategoryResponse {
+  categories: (string | null)[];
+  departments: DeptCatEntry[];
+  grand_subtotal: number[];
+  grand_total: number;
+}
+
+// Image 2: 대분류/세부분류 행 × 부서 열 (수량)
+export interface CatChildEntry {
+  name: string | null;
+  counts: number[];
+  total: number;
+}
+
+export interface CatGroupEntry {
+  parent_name: string | null;
+  children: CatChildEntry[];
+  subtotal: number[];
+  grand_total: number;
+}
+
+export interface CategoryDeptCountResponse {
+  departments: (string | null)[];
+  categories: CatGroupEntry[];
+  grand_subtotal: number[];
+  grand_total: number;
+}
+
+// ─── Legacy ───────────────────────────────────────────────────────────────────
+
 export interface TeamValueSummary {
   team_name: string | null;
   asset_count: number;

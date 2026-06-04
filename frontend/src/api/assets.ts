@@ -3,7 +3,9 @@ import type {
   Asset,
   AssetParams,
   CategoryByDeptResponse,
+  CategoryDeptCountResponse,
   DepartmentValueSummary,
+  DeptTeamCategoryResponse,
   Inspection,
   InspectionParams,
   QrCode,
@@ -57,3 +59,11 @@ export const getDeptValueSummary = () =>
 
 export const getCategoryByDeptSummary = () =>
   client.get<CategoryByDeptResponse>('/assets/summary/category-by-department').then((r) => r.data);
+
+export const getDeptTeamCategorySummary = () =>
+  client.get<DeptTeamCategoryResponse>('/assets/summary/dept-team-category').then((r) => r.data);
+
+export const getCategoryDeptCountSummary = () =>
+  client
+    .get<CategoryDeptCountResponse>('/assets/summary/category-dept-count')
+    .then((r) => r.data);

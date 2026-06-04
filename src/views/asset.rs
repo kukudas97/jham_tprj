@@ -8,6 +8,56 @@ use crate::models::_entities::teams;
 
 // ─── Summary response types ───────────────────────────────────────────────────
 
+// Image 1: 부서/팀 행 × 자산분류 열 (평가금액)
+#[derive(Debug, Serialize)]
+pub struct TeamCatEntry {
+    pub team_name: Option<String>,
+    pub values: Vec<i64>,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeptCatEntry {
+    pub department_name: Option<String>,
+    pub subtotal: Vec<i64>,
+    pub grand_total: i64,
+    pub teams: Vec<TeamCatEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeptTeamCategoryResponse {
+    pub categories: Vec<Option<String>>,
+    pub departments: Vec<DeptCatEntry>,
+    pub grand_subtotal: Vec<i64>,
+    pub grand_total: i64,
+}
+
+// Image 2: 대분류 > 세부분류 행 × 부서 열 (수량)
+#[derive(Debug, Serialize)]
+pub struct CatChildEntry {
+    pub name: Option<String>,
+    pub counts: Vec<i64>,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatGroupEntry {
+    pub parent_name: Option<String>,
+    pub children: Vec<CatChildEntry>,
+    pub subtotal: Vec<i64>,
+    pub grand_total: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CategoryDeptCountResponse {
+    pub departments: Vec<Option<String>>,
+    pub categories: Vec<CatGroupEntry>,
+    pub grand_subtotal: Vec<i64>,
+    pub grand_total: i64,
+}
+
+// ─── Legacy summary types (기존 endpoint 호환) ────────────────────────────────
+
 #[derive(Debug, Serialize)]
 pub struct TeamValueSummary {
     pub team_name: Option<String>,

@@ -555,6 +555,250 @@ pub async fn upload_photo(
     format::json(AssetResponse::new(updated, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
 }
 
+// ─── 통계 (신규): 부서/팀 행 × 자산분류 열 (Image 1) ─────────────────────────
+#[debug_handler]
+pub async fn dept_team_category_summary(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+) -> Result<Response> {
+    use sea_orm::{DbBackend, FromQueryResult, Statement};
+    use std::collections::{HashMap, HashSet};
+    use crate::views::asset::{DeptTeamCategoryResponse, DeptCatEntry, TeamCatEntry};
+
+    let company_id = get_company_id(&auth, &ctx).await?;
+
+    #[derive(Debug, FromQueryResult)]
+    struct Row {
+        department_name: Option<String>,
+        team_name: Option<String>,
+        category_name: Option<String>,
+        total_appraised_value: i64,
+    }
+
+    let rows = Row::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+            SELECT
+                d.name AS department_name,
+                t.name AS team_name,
+                c.name AS category_name,
+                COALESCE(SUM(a.appraised_value), 0)::bigint AS total_appraised_value
+            FROM assets a
+            LEFT JOIN departments d ON a.department_id = d.id
+            LEFT JOIN teams t ON a.team_id = t.id
+            LEFT JOIN asset_categories c ON a.category_id = c.id
+            WHERE a.company_id = $1 AND a.deleted_at IS NULL
+            GROUP BY d.name, t.name, c.name
+            ORDER BY d.name NULLS LAST, t.name NULLS LAST, c.name NULLS LAST
+        "#,
+        [company_id.into()],
+    ))
+    .all(&ctx.db)
+    .await?;
+
+    // Collect unique sorted categories
+    let mut seen_cats: HashSet<Option<String>> = HashSet::new();
+    let mut all_categories: Vec<Option<String>> = Vec::new();
+    for row in &rows {
+        if seen_cats.insert(row.category_name.clone()) {
+            all_categories.push(row.category_name.clone());
+        }
+    }
+    all_categories.sort_by(|a, b| match (a, b) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, _) => std::cmp::Ordering::Greater,
+        (_, None) => std::cmp::Ordering::Less,
+        (Some(x), Some(y)) => x.cmp(y),
+    });
+
+    // Build pivot: dept → team → category → value
+    let mut dept_order: Vec<Option<String>> = Vec::new();
+    let mut dept_seen: HashSet<Option<String>> = HashSet::new();
+    type TeamPivot = HashMap<Option<String>, HashMap<Option<String>, i64>>;
+    let mut dept_team_order: HashMap<Option<String>, Vec<Option<String>>> = HashMap::new();
+    let mut dept_team_seen: HashMap<Option<String>, HashSet<Option<String>>> = HashMap::new();
+    let mut pivot: HashMap<Option<String>, TeamPivot> = HashMap::new();
+
+    for row in rows {
+        if dept_seen.insert(row.department_name.clone()) {
+            dept_order.push(row.department_name.clone());
+        }
+        let team_seen = dept_team_seen.entry(row.department_name.clone()).or_default();
+        if team_seen.insert(row.team_name.clone()) {
+            dept_team_order.entry(row.department_name.clone()).or_default().push(row.team_name.clone());
+        }
+        *pivot
+            .entry(row.department_name)
+            .or_default()
+            .entry(row.team_name)
+            .or_default()
+            .entry(row.category_name)
+            .or_insert(0) += row.total_appraised_value;
+    }
+
+    let n_cats = all_categories.len();
+    let departments: Vec<DeptCatEntry> = dept_order
+        .into_iter()
+        .map(|dept_name| {
+            let team_order = dept_team_order.get(&dept_name).cloned().unwrap_or_default();
+            let dept_pivot = pivot.get(&dept_name).cloned().unwrap_or_default();
+            let teams: Vec<TeamCatEntry> = team_order
+                .into_iter()
+                .map(|team_name| {
+                    let cat_map = dept_pivot.get(&team_name).cloned().unwrap_or_default();
+                    let values: Vec<i64> = all_categories
+                        .iter()
+                        .map(|cat| cat_map.get(cat).copied().unwrap_or(0))
+                        .collect();
+                    let total = values.iter().sum();
+                    TeamCatEntry { team_name, values, total }
+                })
+                .collect();
+            let subtotal: Vec<i64> = (0..n_cats)
+                .map(|i| teams.iter().map(|t| t.values[i]).sum())
+                .collect();
+            let grand_total = subtotal.iter().sum();
+            DeptCatEntry { department_name: dept_name, subtotal, grand_total, teams }
+        })
+        .collect();
+
+    let grand_subtotal: Vec<i64> = (0..n_cats)
+        .map(|i| departments.iter().map(|d| d.subtotal[i]).sum())
+        .collect();
+    let grand_total = grand_subtotal.iter().sum();
+
+    format::json(DeptTeamCategoryResponse {
+        categories: all_categories,
+        departments,
+        grand_subtotal,
+        grand_total,
+    })
+}
+
+// ─── 통계 (신규): 대분류/세부분류 행 × 부서 열 (Image 2) ─────────────────────
+#[debug_handler]
+pub async fn category_dept_count_summary(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+) -> Result<Response> {
+    use sea_orm::{DbBackend, FromQueryResult, Statement};
+    use std::collections::{HashMap, HashSet};
+    use crate::views::asset::{CategoryDeptCountResponse, CatGroupEntry, CatChildEntry};
+
+    let company_id = get_company_id(&auth, &ctx).await?;
+
+    #[derive(Debug, FromQueryResult)]
+    struct Row {
+        parent_cat: Option<String>,
+        child_cat: Option<String>,
+        department_name: Option<String>,
+        asset_count: i64,
+    }
+
+    let rows = Row::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+            SELECT
+                COALESCE(pc.name, c.name) AS parent_cat,
+                CASE WHEN pc.id IS NOT NULL THEN c.name ELSE NULL END AS child_cat,
+                d.name AS department_name,
+                COUNT(a.id)::bigint AS asset_count
+            FROM assets a
+            LEFT JOIN departments d ON a.department_id = d.id
+            LEFT JOIN asset_categories c ON a.category_id = c.id
+            LEFT JOIN asset_categories pc ON c.parent_id = pc.id
+            WHERE a.company_id = $1 AND a.deleted_at IS NULL
+            GROUP BY COALESCE(pc.name, c.name),
+                     CASE WHEN pc.id IS NOT NULL THEN c.name ELSE NULL END,
+                     d.name
+            ORDER BY COALESCE(pc.name, c.name) NULLS LAST,
+                     CASE WHEN pc.id IS NOT NULL THEN c.name ELSE NULL END NULLS LAST,
+                     d.name NULLS LAST
+        "#,
+        [company_id.into()],
+    ))
+    .all(&ctx.db)
+    .await?;
+
+    // Collect unique sorted departments
+    let mut dept_seen: HashSet<Option<String>> = HashSet::new();
+    let mut all_depts: Vec<Option<String>> = Vec::new();
+    for row in &rows {
+        if dept_seen.insert(row.department_name.clone()) {
+            all_depts.push(row.department_name.clone());
+        }
+    }
+    all_depts.sort_by(|a, b| match (a, b) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, _) => std::cmp::Ordering::Greater,
+        (_, None) => std::cmp::Ordering::Less,
+        (Some(x), Some(y)) => x.cmp(y),
+    });
+
+    // Build pivot: parent_cat → child_cat → dept → count
+    let mut parent_order: Vec<Option<String>> = Vec::new();
+    let mut parent_seen: HashSet<Option<String>> = HashSet::new();
+    type ChildPivot = HashMap<Option<String>, HashMap<Option<String>, i64>>;
+    let mut parent_child_order: HashMap<Option<String>, Vec<Option<String>>> = HashMap::new();
+    let mut parent_child_seen: HashMap<Option<String>, HashSet<Option<String>>> = HashMap::new();
+    let mut pivot: HashMap<Option<String>, ChildPivot> = HashMap::new();
+
+    for row in rows {
+        if parent_seen.insert(row.parent_cat.clone()) {
+            parent_order.push(row.parent_cat.clone());
+        }
+        let child_seen = parent_child_seen.entry(row.parent_cat.clone()).or_default();
+        if child_seen.insert(row.child_cat.clone()) {
+            parent_child_order.entry(row.parent_cat.clone()).or_default().push(row.child_cat.clone());
+        }
+        *pivot
+            .entry(row.parent_cat)
+            .or_default()
+            .entry(row.child_cat)
+            .or_default()
+            .entry(row.department_name)
+            .or_insert(0) += row.asset_count;
+    }
+
+    let n_depts = all_depts.len();
+    let categories: Vec<CatGroupEntry> = parent_order
+        .into_iter()
+        .map(|parent_name| {
+            let child_order = parent_child_order.get(&parent_name).cloned().unwrap_or_default();
+            let parent_pivot = pivot.get(&parent_name).cloned().unwrap_or_default();
+            let children: Vec<CatChildEntry> = child_order
+                .into_iter()
+                .map(|child_name| {
+                    let dept_map = parent_pivot.get(&child_name).cloned().unwrap_or_default();
+                    let counts: Vec<i64> = all_depts
+                        .iter()
+                        .map(|d| dept_map.get(d).copied().unwrap_or(0))
+                        .collect();
+                    let total = counts.iter().sum();
+                    CatChildEntry { name: child_name, counts, total }
+                })
+                .collect();
+            let subtotal: Vec<i64> = (0..n_depts)
+                .map(|i| children.iter().map(|c| c.counts[i]).sum())
+                .collect();
+            let grand_total = subtotal.iter().sum();
+            CatGroupEntry { parent_name, children, subtotal, grand_total }
+        })
+        .collect();
+
+    let grand_subtotal: Vec<i64> = (0..n_depts)
+        .map(|i| categories.iter().map(|c| c.subtotal[i]).sum())
+        .collect();
+    let grand_total = grand_subtotal.iter().sum();
+
+    format::json(CategoryDeptCountResponse {
+        departments: all_depts,
+        categories,
+        grand_subtotal,
+        grand_total,
+    })
+}
+
 // ─── 통계: 부서/팀별 평가금액 합계 ────────────────────────────────────────────
 #[debug_handler]
 pub async fn dept_value_summary(
@@ -762,6 +1006,8 @@ pub fn routes() -> Routes {
         .add("photo/{filename}", get(serve_photo))
         .add("summary/department-values", get(dept_value_summary))
         .add("summary/category-by-department", get(category_by_dept_summary))
+        .add("summary/dept-team-category", get(dept_team_category_summary))
+        .add("summary/category-dept-count", get(category_dept_count_summary))
         .add("/", get(list))
         .add("/", post(add))
         .add("{pid}", get(get_one))
