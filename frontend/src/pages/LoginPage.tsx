@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import * as authApi from '../api/auth';
 
@@ -15,6 +15,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +24,8 @@ const LoginPage: React.FC = () => {
     try {
       const data = await authApi.login(email, password);
       login(data);
-      navigate('/assets');
+      const redirect = searchParams.get('redirect');
+      navigate(redirect ?? '/assets');
     } catch {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');
     } finally {

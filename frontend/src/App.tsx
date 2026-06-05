@@ -1,10 +1,9 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import AuthGuard from './components/AuthGuard';
 import LoginPage from './pages/LoginPage';
 import AssetsPage from './pages/AssetsPage';
-import AssetDetailPage from './pages/AssetDetailPage';
 import AssetCategoriesPage from './pages/AssetCategoriesPage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import UploadPage from './pages/UploadPage';
@@ -12,6 +11,12 @@ import QrScanPage from './pages/QrScanPage';
 import HelpPage from './pages/HelpPage';
 import InspectionsPage from './pages/InspectionsPage';
 import ReportsPage from './pages/ReportsPage';
+import AdminPage from './pages/AdminPage';
+
+const AssetPidRedirect: React.FC = () => {
+  const { pid } = useParams<{ pid: string }>();
+  return <Navigate to={`/assets?open=${pid}`} replace />;
+};
 
 const App: React.FC = () => (
   <AuthProvider>
@@ -31,7 +36,7 @@ const App: React.FC = () => (
           path="/assets/:pid"
           element={
             <AuthGuard>
-              <AssetDetailPage />
+              <AssetPidRedirect />
             </AuthGuard>
           }
         />
@@ -80,6 +85,14 @@ const App: React.FC = () => (
           element={
             <AuthGuard>
               <ReportsPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AuthGuard>
+              <AdminPage />
             </AuthGuard>
           }
         />

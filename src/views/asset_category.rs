@@ -15,12 +15,14 @@ pub struct RequiredFields {
 pub struct SubCategoryResponse {
     pub pid: Uuid,
     pub name: String,
+    pub sort_order: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryResponse {
     pub pid: Uuid,
     pub name: String,
+    pub sort_order: i32,
     pub children: Vec<SubCategoryResponse>,
     pub required_fields: RequiredFields,
     pub field_defs: Vec<FieldDefResponse>,
@@ -31,6 +33,7 @@ impl CategoryResponse {
         Self {
             pid: parent.pid,
             name: parent.name,
+            sort_order: parent.sort_order,
             required_fields: RequiredFields {
                 serial_number: parent.require_serial_number,
                 location: parent.require_location,
@@ -38,7 +41,7 @@ impl CategoryResponse {
             },
             children: children
                 .into_iter()
-                .map(|c| SubCategoryResponse { pid: c.pid, name: c.name })
+                .map(|c| SubCategoryResponse { pid: c.pid, name: c.name, sort_order: c.sort_order })
                 .collect(),
             field_defs,
         }

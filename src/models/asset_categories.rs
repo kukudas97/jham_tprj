@@ -30,12 +30,14 @@ impl Model {
         db: &DatabaseConnection,
         company_id: i32,
     ) -> ModelResult<Vec<Self>> {
+        use sea_orm::QueryOrder;
         Ok(asset_categories::Entity::find()
             .filter(
                 model::query::condition()
                     .eq(asset_categories::Column::CompanyId, company_id)
                     .build(),
             )
+            .order_by_asc(asset_categories::Column::SortOrder)
             .all(db)
             .await?)
     }

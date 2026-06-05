@@ -8,6 +8,7 @@ pub struct LoginResponse {
     pub pid: String,
     pub name: String,
     pub is_verified: bool,
+    pub is_admin: bool,
     pub company_id: Option<i32>,
     pub company_pid: Option<String>,
 }
@@ -20,6 +21,7 @@ impl LoginResponse {
             pid: user.pid.to_string(),
             name: user.name.clone(),
             is_verified: user.email_verified_at.is_some(),
+            is_admin: user.is_admin,
             company_id: user.company_id,
             company_pid,
         }
@@ -31,6 +33,7 @@ pub struct CurrentResponse {
     pub pid: String,
     pub name: String,
     pub email: String,
+    pub is_admin: bool,
     pub company_id: Option<i32>,
     pub company_pid: Option<String>,
 }
@@ -42,6 +45,7 @@ impl CurrentResponse {
             pid: user.pid.to_string(),
             name: user.name.clone(),
             email: user.email.clone(),
+            is_admin: user.is_admin,
             company_id: user.company_id,
             company_pid,
         }

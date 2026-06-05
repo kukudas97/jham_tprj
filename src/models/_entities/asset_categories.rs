@@ -17,6 +17,7 @@ pub struct Model {
     pub require_serial_number: bool,
     pub require_location: bool,
     pub require_note: bool,
+    pub sort_order: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

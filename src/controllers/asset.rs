@@ -590,14 +590,25 @@ pub async fn dept_team_category_summary(
             LEFT JOIN asset_categories pc ON c.parent_id = pc.id
             WHERE a.company_id = $1 AND a.deleted_at IS NULL
             GROUP BY d.name, t.name, COALESCE(pc.name, c.name)
-            ORDER BY d.name NULLS LAST, t.name NULLS LAST, COALESCE(pc.name, c.name) NULLS LAST
+            ORDER BY d.name ASC NULLS LAST, t.name DESC NULLS LAST, COALESCE(pc.name, c.name) NULLS LAST
         "#,
         [company_id.into()],
     ))
     .all(&ctx.db)
     .await?;
 
-    // Collect unique sorted categories
+    // Collect unique categories, ordered by sort_order from DB
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+    let ordered_cats: Vec<String> = crate::models::_entities::asset_categories::Entity::find()
+        .filter(crate::models::_entities::asset_categories::Column::CompanyId.eq(company_id))
+        .filter(crate::models::_entities::asset_categories::Column::ParentId.is_null())
+        .order_by_asc(crate::models::_entities::asset_categories::Column::SortOrder)
+        .all(&ctx.db)
+        .await?
+        .into_iter()
+        .map(|c| c.name)
+        .collect();
+
     let mut seen_cats: HashSet<Option<String>> = HashSet::new();
     let mut all_categories: Vec<Option<String>> = Vec::new();
     for row in &rows {
@@ -605,11 +616,14 @@ pub async fn dept_team_category_summary(
             all_categories.push(row.category_name.clone());
         }
     }
-    all_categories.sort_by(|a, b| match (a, b) {
-        (None, None) => std::cmp::Ordering::Equal,
-        (None, _) => std::cmp::Ordering::Greater,
-        (_, None) => std::cmp::Ordering::Less,
-        (Some(x), Some(y)) => x.cmp(y),
+    all_categories.sort_by(|a, b| {
+        let ai = a.as_ref()
+            .and_then(|n| ordered_cats.iter().position(|c| c == n))
+            .unwrap_or(usize::MAX);
+        let bi = b.as_ref()
+            .and_then(|n| ordered_cats.iter().position(|c| c == n))
+            .unwrap_or(usize::MAX);
+        ai.cmp(&bi)
     });
 
     // Build pivot: dept → team → category → value

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
 import * as departmentsApi from '../api/departments';
@@ -16,9 +17,21 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
   workbook.creator = 'JHAM';
   workbook.created = new Date();
 
-  const HEADER_COLOR = '4F46E5';
-  const ALT_ROW_COLOR = 'F5F5FF';
+  const HDR_REQUIRED = '4F46E5'; // 필수 - 짙은 보라
+  const HDR_OPT     = '818CF8'; // 선택 - 옅은 보라
+  const HDR_CUSTOM  = '1E3A5F'; // 커스텀 - 남색
   const BORDER = { style: 'thin' as const, color: { argb: 'FFDDDDDD' } };
+
+  // 업로드 양식과 동일한 컬럼 순서: 자산명,부서명,팀명,관리자,품명,식별번호,평가금액,[커스텀],[QR]
+  const BASE_COLS = [
+    { key: 'name',      header: '자산명',   width: 16, required: true  },
+    { key: 'dept',      header: '부서명',   width: 16, required: true  },
+    { key: 'team',      header: '팀명',     width: 14, required: false },
+    { key: 'manager',   header: '관리자',   width: 12, required: false },
+    { key: 'category',  header: '품명',     width: 24, required: true  },
+    { key: 'serial',    header: '식별번호', width: 20, required: true  },
+    { key: 'appraised', header: '평가금액', width: 18, required: true  },
+  ];
 
   for (const parent of categories) {
     const catAssets = assets.filter(
@@ -27,39 +40,44 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
     if (catAssets.length === 0) continue;
 
     const fieldDefs = parent.field_defs ?? [];
-    const BASE_COLS = 9; // 순번,자산명,품명,식별번호,부서명,팀명,담당자,위치,평가금액
-    const qrColNum = BASE_COLS + fieldDefs.length + 1;
+    const appraisedColNum = 7; // 평가금액 위치
+    const qrColNum = BASE_COLS.length + fieldDefs.length + 1;
 
     const sheet = workbook.addWorksheet(parent.name.slice(0, 31));
     sheet.columns = [
-      { key: 'idx', width: 6 },
-      { key: 'name', width: 22 },
-      { key: 'category', width: 16 },
-      { key: 'serial', width: 20 },
-      { key: 'dept', width: 16 },
-      { key: 'team', width: 16 },
-      { key: 'manager', width: 14 },
-      { key: 'location', width: 16 },
-      { key: 'appraised', width: 16 },
+      ...BASE_COLS.map((c) => ({ key: c.key, width: c.width })),
       ...fieldDefs.map((def) => ({ key: `field_${def.pid}`, width: 16 })),
       ...(includeQr ? [{ key: 'qr', width: 13 }] : []),
     ];
 
     const headers = [
-      '순번', '자산명', '품명', '식별번호', '부서명', '팀명', '담당자', '위치', '평가금액',
+      ...BASE_COLS.map((c) => c.header),
       ...fieldDefs.map((def) => def.field_label),
       ...(includeQr ? ['QR코드'] : []),
     ];
     const headerRow = sheet.addRow(headers);
     headerRow.height = 22;
-    headerRow.eachCell((cell) => {
+    headerRow.eachCell((cell, colNum) => {
+      const baseCol = BASE_COLS[colNum - 1];
+      let color: string;
+      if (!baseCol) {
+        // 커스텀 필드 또는 QR
+        const isQr = includeQr && colNum === BASE_COLS.length + fieldDefs.length + 1;
+        color = isQr ? HDR_OPT : HDR_CUSTOM;
+      } else {
+        color = baseCol.required ? HDR_REQUIRED : HDR_OPT;
+      }
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${HEADER_COLOR}` } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: `FF${color}` },
+      };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = { bottom: BORDER, right: BORDER };
     });
 
-    const ROW_HEIGHT = includeQr ? 72 : 20;
+    const ROW_HEIGHT = includeQr ? 72 : 18;
 
     for (const [i, asset] of catAssets.entries()) {
       const rowNum = i + 2;
@@ -68,30 +86,22 @@ async function exportExcel(assets: Asset[], categories: Category[], includeQr: b
         return fv?.value ?? '';
       });
       const row = sheet.addRow([
-        i + 1,
-        asset.name,
         asset.category_name ?? '',
-        asset.serial_number ?? '',
         asset.department_name ?? '',
         asset.team_name ?? '',
         asset.manager_name ?? '',
-        asset.location ?? '',
+        asset.name,
+        asset.serial_number ?? '',
         asset.appraised_value || null,
         ...customValues,
         ...(includeQr ? [''] : []),
       ]);
       row.height = ROW_HEIGHT;
 
-      if (i % 2 === 1) {
-        row.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${ALT_ROW_COLOR}` } };
-        });
-      }
-
       row.eachCell((cell, col) => {
-        cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left' };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
         cell.border = { bottom: BORDER, right: BORDER };
-        if (col === 9) {
+        if (col === appraisedColNum) {
           cell.numFmt = '#,##0';
           cell.alignment = { vertical: 'middle', horizontal: 'right' };
         }
@@ -224,6 +234,7 @@ const MultiSelectDropdown: React.FC<{
 };
 
 const AssetsPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -242,7 +253,7 @@ const AssetsPage: React.FC = () => {
   const [filterDeptPids, setFilterDeptPids] = useState<string[]>([]);
   const [filterTeamPids, setFilterTeamPids] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
-  const [drawerPid, setDrawerPid] = useState<string | null>(null);
+  const [drawerPid, setDrawerPid] = useState<string | null>(() => searchParams.get('open'));
   const [deletingPids, setDeletingPids] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const allCheckboxRef = useRef<HTMLInputElement>(null);
@@ -553,21 +564,23 @@ const AssetsPage: React.FC = () => {
         </div>
 
         {/* 통계 카드 */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 mb-1">전체 자산</p>
-            <p className="text-2xl font-bold text-gray-900">{loading ? '-' : assets.length}</p>
-            <p className="text-xs text-gray-400 mt-0.5">등록된 자산</p>
+        <div className="grid grid-cols-3 gap-2 md:gap-3 mb-4 md:mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 mb-1 truncate">전체 자산</p>
+            <p className="text-xl md:text-2xl font-bold text-gray-900">{loading ? '-' : assets.length}</p>
+            <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">등록된 자산</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 mb-1">분류 완료</p>
-            <p className="text-2xl font-bold text-indigo-600">{loading ? '-' : categorizedCount}</p>
-            <p className="text-xs text-gray-400 mt-0.5">분류가 지정된 자산</p>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 mb-1 truncate">평가금액</p>
+            <p className="text-sm md:text-xl font-bold text-indigo-600 truncate">
+              {loading ? '-' : filtered.reduce((s, a) => s + (a.appraised_value ?? 0), 0).toLocaleString('ko-KR')}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">필터 적용 합계</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 mb-1">검색 결과</p>
-            <p className="text-2xl font-bold text-gray-700">{loading ? '-' : filtered.length}</p>
-            <p className="text-xs text-gray-400 mt-0.5">필터 적용 결과</p>
+          <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 mb-1 truncate">검색 결과</p>
+            <p className="text-xl md:text-2xl font-bold text-gray-700">{loading ? '-' : filtered.length}</p>
+            <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">필터 적용 결과</p>
           </div>
         </div>
 
@@ -689,18 +702,18 @@ const AssetsPage: React.FC = () => {
                     </th>
                     <th className="text-center px-3 py-3.5 text-xs font-semibold text-gray-400 w-10">No.</th>
                     {[
-                      { key: 'name', label: '품명', cls: '' },
-                      { key: 'category', label: '분류', cls: '' },
-                      { key: 'serial', label: '식별번호', cls: '' },
-                      { key: 'location', label: '부서명', cls: 'hidden lg:table-cell' },
-                      { key: '팀명', label: '팀명', cls: 'hidden lg:table-cell' },
-                      { key: '관리자', label: '관리자', cls: 'hidden lg:table-cell' },
-                      { key: 'appraised_value', label: '평가금액', cls: 'hidden lg:table-cell' },
-                    ].map(({ key, label, cls }) => (
+                      { key: 'category', label: '자산명' },
+                      { key: 'location', label: '부서명' },
+                      { key: '팀명', label: '팀명' },
+                      { key: '관리자', label: '관리자' },
+                      { key: 'name', label: '품명' },
+                      { key: 'serial', label: '식별번호' },
+                      { key: 'appraised_value', label: '평가금액' },
+                    ].map(({ key, label }) => (
                       <th
                         key={key}
                         onClick={() => handleSort(key)}
-                        className={`text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors ${cls}`}
+                        className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors"
                       >
                         <span className="flex items-center gap-0.5">
                           {label}{sortIcon(key)}
@@ -729,15 +742,6 @@ const AssetsPage: React.FC = () => {
                         </td>
                         <td className="px-3 py-3.5 text-center text-xs text-gray-400">{(page - 1) * pageSize + idx + 1}</td>
                         <td className="px-5 py-3.5">
-                          <button
-                            type="button"
-                            onClick={() => setDrawerPid(asset.pid)}
-                            className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline text-left"
-                          >
-                            {asset.name}
-                          </button>
-                        </td>
-                        <td className="px-5 py-3.5">
                           {getCategoryLabel(asset) ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
                               {getCategoryLabel(asset)}
@@ -746,11 +750,20 @@ const AssetsPage: React.FC = () => {
                             <span className="text-gray-300">-</span>
                           )}
                         </td>
+                        <td className="px-5 py-3.5 text-gray-500">{asset.department_name ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500">{asset.team_name ?? '-'}</td>
+                        <td className="px-5 py-3.5 text-gray-500">{asset.manager_name ?? '-'}</td>
+                        <td className="px-5 py-3.5">
+                          <button
+                            type="button"
+                            onClick={() => setDrawerPid(asset.pid)}
+                            className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline text-left"
+                          >
+                            {asset.name}
+                          </button>
+                        </td>
                         <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">{asset.serial_number ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.department_name ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.team_name ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{asset.manager_name ?? '-'}</td>
-                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell text-right">
+                        <td className="px-5 py-3.5 text-gray-500 text-right">
                           {asset.appraised_value > 0
                             ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
                             : '-'}
@@ -878,37 +891,41 @@ const AssetsPage: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2 pl-7">
-                      {getCategoryLabel(asset) && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                          {getCategoryLabel(asset)}
-                        </span>
-                      )}
-                      {asset.serial_number && (
-                        <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded">
-                          {asset.serial_number}
-                        </span>
-                      )}
-                      {asset.department_name && (
-                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {asset.department_name}
-                        </span>
-                      )}
-                      {asset.team_name && (
-                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {asset.team_name}
-                        </span>
-                      )}
-                      {asset.manager_name && (
-                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                          {asset.manager_name}
-                        </span>
-                      )}
-                      {asset.appraised_value > 0 && (
-                        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-medium">
-                          {asset.appraised_value.toLocaleString('ko-KR')}원
-                        </span>
-                      )}
+                    <div className="mt-2 pl-7 space-y-1">
+                      <div className="flex flex-wrap gap-1.5">
+                        {getCategoryLabel(asset) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            {getCategoryLabel(asset)}
+                          </span>
+                        )}
+                        {asset.department_name && (
+                          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            {asset.department_name}
+                          </span>
+                        )}
+                        {asset.team_name && (
+                          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            {asset.team_name}
+                          </span>
+                        )}
+                        {asset.manager_name && (
+                          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            {asset.manager_name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {asset.serial_number && (
+                          <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded">
+                            {asset.serial_number}
+                          </span>
+                        )}
+                        {asset.appraised_value > 0 && (
+                          <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-medium">
+                            {asset.appraised_value.toLocaleString('ko-KR')}원
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -962,7 +979,7 @@ const AssetsPage: React.FC = () => {
 
       <AssetDetailDrawer
         pid={drawerPid}
-        onClose={() => setDrawerPid(null)}
+        onClose={() => { setDrawerPid(null); setSearchParams({}); }}
         onSaved={() => fetchAll()}
       />
     </Layout>

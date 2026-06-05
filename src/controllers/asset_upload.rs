@@ -525,7 +525,7 @@ async fn do_parse_and_insert(
             let asset =
                 if let Some(existing) = find_asset_by_serial(db, &id_number, company_id).await? {
                     let mut active: assets::ActiveModel = existing.into();
-                    active.name = Set(product_name);
+                    active.name = Set(product_name.clone());
                     active.location = Set(Some(dept_name));
                     active.category_id = Set(Some(assigned_cat.id));
                     active.department_id = Set(Some(dept.id));

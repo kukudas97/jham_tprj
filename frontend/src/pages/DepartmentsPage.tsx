@@ -238,7 +238,7 @@ const DepartmentsPage: React.FC = () => {
             <button type="button" onClick={handleSync} disabled={syncing}
               title="기존 자산의 부서명/팀명을 읽어 부서·팀 자동 생성 및 연결 (팀이 없어도 부서만 연결됩니다)"
               className="px-3 py-2 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-50 disabled:opacity-50 transition-colors">
-              {syncing ? '처리 중…' : '기존 자산 자동 매핑'}
+              {syncing ? '처리 중…' : <><span className="hidden sm:inline">기존 자산 </span>자동 매핑</>}
             </button>
             <button type="button"
               onClick={() => { setAddingDept(true); setEditingDeptPid(null); }}

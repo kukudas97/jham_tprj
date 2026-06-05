@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working in this repository.
 
 > Before making changes, always read `README.md` first (source of truth for architecture, requirements, and setup). If `COMMAND.md` exists, read it for reusable task templates. `COMMAND.md` defers to `README.md` on conflicts.
 

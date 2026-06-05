@@ -3,6 +3,7 @@ export interface LoginResponse {
   pid: string;
   name: string;
   is_verified: boolean;
+  is_admin: boolean;
   company_id: number | null;
   company_pid: string | null;
 }
@@ -55,6 +56,7 @@ export interface AssetParams {
 export interface SubCategory {
   pid: string;
   name: string;
+  sort_order: number;
 }
 
 export interface CategoryRequiredFields {
@@ -66,6 +68,7 @@ export interface CategoryRequiredFields {
 export interface Category {
   pid: string;
   name: string;
+  sort_order: number;
   children: SubCategory[];
   required_fields: CategoryRequiredFields;
   field_defs: FieldDef[];
@@ -140,6 +143,11 @@ export interface InspectionTemplateParams {
 export interface QrCode {
   pid: string;
   image_path: string;
+}
+
+export interface ReorderItem {
+  pid: string;
+  sort_order: number;
 }
 
 export interface AssetUpload {

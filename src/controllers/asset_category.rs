@@ -1,8 +1,10 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unused_async)]
 use loco_rs::prelude::*;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 
+use crate::models::_entities::asset_categories as asset_cat_entity;
 use crate::models::asset_categories::{self, Model};
 use crate::models::category_field_defs;
 use crate::models::users;
@@ -19,6 +21,12 @@ pub struct CreateParams {
     pub require_location: bool,
     #[serde(default)]
     pub require_note: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReorderItem {
+    pub pid: String,
+    pub sort_order: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,10 +100,31 @@ pub async fn create(
 
     let is_parent = parent_id.is_none();
 
+    let max_order: i32 = if is_parent {
+        asset_cat_entity::Entity::find()
+            .filter(asset_cat_entity::Column::CompanyId.eq(company_id))
+            .filter(asset_cat_entity::Column::ParentId.is_null())
+            .order_by_desc(asset_cat_entity::Column::SortOrder)
+            .one(&ctx.db)
+            .await?
+            .map(|m| m.sort_order)
+            .unwrap_or(-1)
+    } else {
+        asset_cat_entity::Entity::find()
+            .filter(asset_cat_entity::Column::CompanyId.eq(company_id))
+            .filter(asset_cat_entity::Column::ParentId.eq(parent_id.unwrap()))
+            .order_by_desc(asset_cat_entity::Column::SortOrder)
+            .one(&ctx.db)
+            .await?
+            .map(|m| m.sort_order)
+            .unwrap_or(-1)
+    };
+
     let item = asset_categories::ActiveModel {
         name: Set(params.name),
         parent_id: Set(parent_id),
         company_id: Set(company_id),
+        sort_order: Set(max_order + 1),
         require_serial_number: Set(if is_parent { params.require_serial_number } else { false }),
         require_location: Set(if is_parent { params.require_location } else { false }),
         require_note: Set(if is_parent { params.require_note } else { false }),
@@ -159,11 +188,28 @@ pub async fn remove(
     format::empty()
 }
 
+#[debug_handler]
+pub async fn reorder(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+    Json(items): Json<Vec<ReorderItem>>,
+) -> Result<Response> {
+    let company_id = get_company_id(&auth, &ctx).await?;
+    for item in items {
+        let cat = Model::find_by_pid_and_company(&ctx.db, &item.pid, company_id).await?;
+        let mut active = cat.into_active_model();
+        active.sort_order = Set(item.sort_order);
+        active.update(&ctx.db).await?;
+    }
+    format::empty()
+}
+
 pub fn routes() -> Routes {
     Routes::new()
         .prefix("api/categories/")
         .add("/", get(list))
         .add("/", post(create))
+        .add("reorder", put(reorder))
         .add("{pid}", put(update))
         .add("{pid}", delete(remove))
 }

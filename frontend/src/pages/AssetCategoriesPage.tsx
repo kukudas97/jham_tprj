@@ -6,6 +6,16 @@ import { isCurrencyField, formatCurrency } from '../utils/format';
 import AssetDetailDrawer from '../components/AssetDetailDrawer';
 import Layout from '../components/Layout';
 
+const TABLE_COLS = [
+  { key: 'category', label: '자산명' },
+  { key: 'department', label: '부서명' },
+  { key: 'team', label: '팀명' },
+  { key: 'manager', label: '관리자' },
+  { key: 'name', label: '품명' },
+  { key: 'serial', label: '식별번호' },
+  { key: 'appraised_value', label: '평가금액' },
+] as const;
+
 interface RequiredFieldsState {
   serial_number: boolean;
   location: boolean;
@@ -63,6 +73,52 @@ const FieldDefModal: React.FC<FieldDefModalProps> = ({ catPid, catName, fieldDef
   const [editLabel, setEditLabel] = useState('');
   const [editRequired, setEditRequired] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // drag state
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const handleDragStart = (idx: number) => setDragIdx(idx);
+  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDrop = async (dropIdx: number) => {
+    if (dragIdx === null || dragIdx === dropIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const next = [...defs];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(dropIdx, 0, moved);
+    const withOrder = next.map((d, i) => ({ ...d, sort_order: i }));
+    setDefs(withOrder);
+    setDragIdx(null);
+    setDragOverIdx(null);
+
+    setSaving(true);
+    try {
+      await Promise.all(
+        withOrder.map((d) =>
+          categoriesApi.updateFieldDef(catPid, d.pid, {
+            field_name: d.field_name,
+            field_label: d.field_label,
+            is_required: d.is_required,
+            sort_order: d.sort_order,
+          }),
+        ),
+      );
+      onChanged();
+    } catch {
+      alert('순서 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,12 +198,24 @@ const FieldDefModal: React.FC<FieldDefModalProps> = ({ catPid, catName, fieldDef
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        <div className="flex-1 overflow-y-auto p-6 space-y-2">
           {defs.length === 0 && !showAdd && (
             <p className="text-sm text-gray-400 text-center py-4">필드가 없습니다</p>
           )}
-          {defs.map((def) => (
-            <div key={def.pid} className="border border-gray-200 rounded-lg p-3">
+          {defs.map((def, idx) => (
+            <div
+              key={def.pid}
+              draggable={editingPid !== def.pid}
+              onDragStart={() => handleDragStart(idx)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDrop={() => handleDrop(idx)}
+              className={`border rounded-lg p-3 transition-all ${
+                dragOverIdx === idx && dragIdx !== idx
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-200'
+              } ${dragIdx === idx ? 'opacity-40' : ''}`}
+            >
               {editingPid === def.pid ? (
                 <form onSubmit={(e) => handleUpdate(e, def)} className="space-y-2">
                   <div className="flex gap-2">
@@ -186,9 +254,15 @@ const FieldDefModal: React.FC<FieldDefModalProps> = ({ catPid, catName, fieldDef
                   </div>
                 </form>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  {/* 드래그 핸들 */}
+                  <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0 select-none">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 4a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-mono text-gray-700">{def.field_name}</span>
                       <span className="text-sm text-gray-500">→ {def.field_label}</span>
                       {def.is_required && (
@@ -196,7 +270,7 @@ const FieldDefModal: React.FC<FieldDefModalProps> = ({ catPid, catName, fieldDef
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => startEdit(def)}
@@ -303,9 +377,15 @@ const AssetCategoriesPage: React.FC = () => {
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'tree' | 'assets'>('tree');
   const initialCollapseDone = React.useRef(false);
-  const theadRef = React.useRef<HTMLTableSectionElement>(null);
-  const [serialLeft, setSerialLeft] = useState(184);
+
+  // drag state for parent categories
+  const [parentDragIdx, setParentDragIdx] = useState<number | null>(null);
+  const [parentDragOverIdx, setParentDragOverIdx] = useState<number | null>(null);
+  // drag state for child categories: keyed by parent pid
+  const [childDragIdx, setChildDragIdx] = useState<{ parentPid: string; idx: number } | null>(null);
+  const [childDragOverIdx, setChildDragOverIdx] = useState<{ parentPid: string; idx: number } | null>(null);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -321,22 +401,52 @@ const AssetCategoriesPage: React.FC = () => {
     }
   }, []);
 
+  const handleParentDrop = async (dropIdx: number) => {
+    if (parentDragIdx === null || parentDragIdx === dropIdx) {
+      setParentDragIdx(null);
+      setParentDragOverIdx(null);
+      return;
+    }
+    const next = [...categories];
+    const [moved] = next.splice(parentDragIdx, 1);
+    next.splice(dropIdx, 0, moved);
+    const withOrder = next.map((c, i) => ({ ...c, sort_order: i }));
+    setCategories(withOrder);
+    setParentDragIdx(null);
+    setParentDragOverIdx(null);
+    try {
+      await categoriesApi.reorderCategories(withOrder.map((c) => ({ pid: c.pid, sort_order: c.sort_order })));
+    } catch {
+      alert('순서 저장에 실패했습니다.');
+      fetchCategories();
+    }
+  };
+
+  const handleChildDrop = async (parentPid: string, dropIdx: number) => {
+    if (!childDragIdx || childDragIdx.parentPid !== parentPid || childDragIdx.idx === dropIdx) {
+      setChildDragIdx(null);
+      setChildDragOverIdx(null);
+      return;
+    }
+    const parent = categories.find((c) => c.pid === parentPid);
+    if (!parent) return;
+    const next = [...parent.children];
+    const [moved] = next.splice(childDragIdx.idx, 1);
+    next.splice(dropIdx, 0, moved);
+    const withOrder = next.map((c, i) => ({ ...c, sort_order: i }));
+    setCategories(categories.map((c) => c.pid === parentPid ? { ...c, children: withOrder } : c));
+    setChildDragIdx(null);
+    setChildDragOverIdx(null);
+    try {
+      await categoriesApi.reorderCategories(withOrder.map((c) => ({ pid: c.pid, sort_order: c.sort_order })));
+    } catch {
+      alert('순서 저장에 실패했습니다.');
+      fetchCategories();
+    }
+  };
+
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { assetsApi.list().then(setAllAssets); }, []);
-
-  React.useLayoutEffect(() => {
-    const measure = () => {
-      if (!theadRef.current) return;
-      const ths = theadRef.current.querySelectorAll('th');
-      if (ths.length >= 2) {
-        setSerialLeft((ths[0] as HTMLElement).offsetWidth + (ths[1] as HTMLElement).offsetWidth);
-      }
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (theadRef.current) ro.observe(theadRef.current);
-    return () => ro.disconnect();
-  }, [assetsInCategory]);
 
   const toggleCollapse = (pid: string) => {
     setCollapsedPids((prev) => {
@@ -367,7 +477,8 @@ const AssetCategoriesPage: React.FC = () => {
 
   const handleSelectCategory = (pid: string) => {
     setSelectedPid(pid);
-    setSortConfig(null); // 분류 변경 시 정렬 초기화
+    setSortConfig(null);
+    setMobileView('assets');
     const parent = categories.find((c) => c.pid === pid);
     if (parent) {
       fetchAssets([pid, ...parent.children.map((ch) => ch.pid)]);
@@ -499,7 +610,8 @@ const AssetCategoriesPage: React.FC = () => {
     return [...assetsInCategory].sort((a, b) => {
       let av = '';
       let bv = '';
-      if (sortConfig.key === 'name') { av = a.name; bv = b.name; }
+      if (sortConfig.key === 'category') { av = a.category_name ?? ''; bv = b.category_name ?? ''; }
+      else if (sortConfig.key === 'name') { av = a.name; bv = b.name; }
       else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
       else if (sortConfig.key === 'department') { av = a.department_name ?? ''; bv = b.department_name ?? ''; }
       else if (sortConfig.key === 'team') { av = a.team_name ?? ''; bv = b.team_name ?? ''; }
@@ -519,9 +631,27 @@ const AssetCategoriesPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="p-6 flex gap-6 h-full">
+      <div className="p-4 md:p-6 flex flex-col lg:flex-row gap-4 lg:gap-6 lg:h-full">
+        {/* 모바일 탭 전환 버튼 */}
+        <div className="flex lg:hidden border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileView('tree')}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${mobileView === 'tree' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            자산 분류
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('assets')}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${mobileView === 'assets' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            {selectedCategory ? `"${selectedCategory.name}" 목록` : '자산 목록'}
+          </button>
+        </div>
+
         {/* 왼쪽: 분류 트리 */}
-        <div className="w-80 flex-shrink-0 flex flex-col gap-4 min-h-0">
+        <div className={`${mobileView === 'tree' ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 lg:flex-shrink-0 flex-col gap-4 lg:min-h-0`}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900">자산 분류</h2>
             <button
@@ -564,10 +694,18 @@ const AssetCategoriesPage: React.FC = () => {
               </div>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {categories.map((cat) => (
-                  <li key={cat.pid}>
+                {categories.map((cat, catIdx) => (
+                  <li
+                    key={cat.pid}
+                    draggable={editingPid !== cat.pid}
+                    onDragStart={() => setParentDragIdx(catIdx)}
+                    onDragEnd={() => { setParentDragIdx(null); setParentDragOverIdx(null); }}
+                    onDragOver={(e) => { e.preventDefault(); setParentDragOverIdx(catIdx); }}
+                    onDrop={() => handleParentDrop(catIdx)}
+                    className={parentDragOverIdx === catIdx && parentDragIdx !== catIdx ? 'ring-2 ring-inset ring-blue-400 rounded' : ''}
+                  >
                     {/* 대분류 */}
-                    <div className={`flex items-center justify-between px-3 py-2.5 group ${selectedPid === cat.pid ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <div className={`flex items-center justify-between px-3 py-2.5 group ${selectedPid === cat.pid ? 'bg-blue-50' : 'hover:bg-gray-50'} ${parentDragIdx === catIdx ? 'opacity-40' : ''}`}>
                       {editingPid === cat.pid ? (
                         <form onSubmit={(e) => handleUpdate(e, cat.pid, true)} className="flex-1 mr-1 space-y-2">
                           <div className="flex gap-1">
@@ -586,6 +724,11 @@ const AssetCategoriesPage: React.FC = () => {
                       ) : (
                         <>
                           <div className="flex-1 min-w-0 flex items-center gap-1">
+                            <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0 select-none">
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M7 4a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z" />
+                              </svg>
+                            </div>
                             <button
                               type="button"
                               onClick={() => toggleCollapse(cat.pid)}
@@ -696,10 +839,18 @@ const AssetCategoriesPage: React.FC = () => {
                           </form>
                         )}
 
-                        {cat.children.map((child) => (
+                        {cat.children.map((child, childIdx) => (
                           <div
                             key={child.pid}
-                            className={`flex items-center justify-between pl-6 pr-3 py-2 group ${selectedPid === child.pid ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                            draggable={editingPid !== child.pid}
+                            onDragStart={() => setChildDragIdx({ parentPid: cat.pid, idx: childIdx })}
+                            onDragEnd={() => { setChildDragIdx(null); setChildDragOverIdx(null); }}
+                            onDragOver={(e) => { e.preventDefault(); setChildDragOverIdx({ parentPid: cat.pid, idx: childIdx }); }}
+                            onDrop={() => handleChildDrop(cat.pid, childIdx)}
+                            className={`flex items-center justify-between pl-4 pr-3 py-2 group transition-all ${
+                              selectedPid === child.pid ? 'bg-blue-50' : 'hover:bg-gray-50'
+                            } ${childDragIdx?.parentPid === cat.pid && childDragIdx?.idx === childIdx ? 'opacity-40' : ''
+                            } ${childDragOverIdx?.parentPid === cat.pid && childDragOverIdx?.idx === childIdx && !(childDragIdx?.idx === childIdx) ? 'ring-2 ring-inset ring-blue-400 rounded' : ''}`}
                           >
                             {editingPid === child.pid ? (
                               <form onSubmit={(e) => handleUpdate(e, child.pid, false)} className="flex-1 flex gap-1 mr-1">
@@ -715,6 +866,11 @@ const AssetCategoriesPage: React.FC = () => {
                               </form>
                             ) : (
                               <>
+                                <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0 select-none mr-1">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M7 4a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z" />
+                                  </svg>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => handleSelectCategory(child.pid)}
@@ -761,13 +917,25 @@ const AssetCategoriesPage: React.FC = () => {
         </div>
 
         {/* 오른쪽: 선택된 분류의 자산 목록 */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0 min-w-0">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">
-              {selectedCategory ? `"${selectedCategory.name}" 자산 목록` : '분류를 선택하세요'}
-            </h2>
-            {selectedCategory && (
-              <p className="text-sm text-gray-500 mt-0.5">{assetsInCategory.length}개 자산</p>
+        <div className={`${mobileView === 'assets' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col gap-4 lg:min-h-0 min-w-0`}>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {selectedCategory ? `"${selectedCategory.name}" 자산 목록` : '분류를 선택하세요'}
+              </h2>
+              {selectedCategory && (
+                <p className="text-sm text-gray-500 mt-0.5">{assetsInCategory.length}개 자산</p>
+              )}
+            </div>
+            {selectedCategory && assetsInCategory.length > 0 && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2 text-right shrink-0">
+                <p className="text-xs font-medium text-indigo-500 mb-0.5">평가금액 합계</p>
+                <p className="text-lg font-bold text-indigo-700">
+                  {assetsInCategory
+                    .reduce((s, a) => s + (a.appraised_value ?? 0), 0)
+                    .toLocaleString('ko-KR')}원
+                </p>
+              </div>
             )}
           </div>
 
@@ -787,32 +955,10 @@ const AssetCategoriesPage: React.FC = () => {
             ) : (
               <div className="overflow-auto flex-1 min-h-0">
                 <table className="min-w-full text-sm border-separate border-spacing-0">
-                  <thead ref={theadRef} className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
                     <tr>
-                      {/* No. — 고정 */}
-                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10 sticky left-0 bg-gray-50 z-20">No.</th>
-                      {/* 품명 — 고정 */}
-                      <th
-                        onClick={() => handleSort('name')}
-                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky left-10 bg-gray-50 z-20 w-36"
-                      >
-                        <span className="flex items-center gap-0.5">품명{sortIcon('name')}</span>
-                      </th>
-                      {/* 식별번호 — 고정 + 우측 구분선 */}
-                      <th
-                        onClick={() => handleSort('serial')}
-                        className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap sticky bg-gray-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
-                        style={{ left: serialLeft }}
-                      >
-                        <span className="flex items-center gap-0.5">식별번호{sortIcon('serial')}</span>
-                      </th>
-                      {/* 스크롤 컬럼 */}
-                      {[
-                        { key: 'department', label: '부서명' },
-                        { key: 'team', label: '팀명' },
-                        { key: 'manager', label: '관리자' },
-                        { key: 'appraised_value', label: '평가금액' },
-                      ].map(({ key, label }) => (
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-400 w-10">No.</th>
+                      {TABLE_COLS.map(({ key, label }) => (
                         <th
                           key={key}
                           onClick={() => handleSort(key)}
@@ -834,29 +980,23 @@ const AssetCategoriesPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sortedAssets.map((asset, idx) => (
-                      <tr key={asset.pid} className="hover:bg-gray-50 transition-colors group">
-                        {/* No. — 고정 */}
-                        <td className="px-3 py-3 text-center text-xs text-gray-400 whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-gray-50">{idx + 1}</td>
-                        {/* 품명 — 고정 */}
-                        <td className="px-4 py-3 whitespace-nowrap sticky left-10 z-10 bg-white group-hover:bg-gray-50 w-36 max-w-[9rem] overflow-hidden">
+                      <tr key={asset.pid} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-3 text-center text-xs text-gray-400 whitespace-nowrap">{idx + 1}</td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{asset.category_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.manager_name ?? '-'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => setDrawerPid(asset.pid)}
-                            className="font-medium text-blue-700 hover:underline truncate max-w-full block"
+                            className="font-medium text-blue-700 hover:underline"
                             title={asset.name}
                           >
                             {asset.name}
                           </button>
                         </td>
-                        {/* 식별번호 — 고정 + 우측 구분선 */}
-                        <td
-                          className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]"
-                          style={{ left: serialLeft }}
-                        >{asset.serial_number ?? '-'}</td>
-                        {/* 스크롤 컬럼 */}
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.department_name ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.team_name ?? '-'}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{asset.manager_name ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{asset.serial_number ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-right">
                           {asset.appraised_value > 0
                             ? `${asset.appraised_value.toLocaleString('ko-KR')}원`

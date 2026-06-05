@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type {
   Inspection,
   InspectionParams,
@@ -29,6 +29,7 @@ const RESULT_BADGE: Record<InspectionResult, string> = {
 
 const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSaved }) => {
   const isNew = !inspection;
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const [inspectionType, setInspectionType] = useState<InspectionType>(
     inspection?.inspection_type ?? '일반점검',
@@ -38,9 +39,9 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
   );
   const [inspectorName, setInspectorName] = useState(inspection?.inspector_name ?? '');
   const [note, setNote] = useState(inspection?.note ?? '');
-  const [inspectionDate, setInspectionDate] = useState(inspection?.inspection_date ?? '');
-  const [periodStart, setPeriodStart] = useState(inspection?.period_start ?? '');
-  const [periodEnd, setPeriodEnd] = useState(inspection?.period_end ?? '');
+  const [inspectionDate, setInspectionDate] = useState(inspection?.inspection_date ?? today);
+  const [periodStart, setPeriodStart] = useState(inspection?.period_start ?? today);
+  const [periodEnd, setPeriodEnd] = useState(inspection?.period_end ?? today);
   const [remarks, setRemarks] = useState(inspection?.remarks ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -95,7 +96,7 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
       note: note.trim() || undefined,
       inspection_type: inspectionType,
       inspection_result: inspectionResult || undefined,
-      inspection_date: inspectionDate || undefined,
+      inspection_date: inspectionType === '일반점검' ? inspectionDate || undefined : undefined,
       period_start: inspectionType === '기간점검' ? periodStart || undefined : undefined,
       period_end: inspectionType === '기간점검' ? periodEnd || undefined : undefined,
       remarks: remarks.trim() || undefined,
@@ -200,38 +201,26 @@ const InspectionModal: React.FC<Props> = ({ assetPid, inspection, onClose, onSav
               />
             </div>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">시작일자 *</label>
-                  <input
-                    type="date"
-                    value={periodStart}
-                    onChange={(e) => setPeriodStart(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">종료일자 *</label>
-                  <input
-                    type="date"
-                    value={periodEnd}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">점검일자</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">시작일자 *</label>
                 <input
                   type="date"
-                  value={inspectionDate}
-                  onChange={(e) => setInspectionDate(e.target.value)}
+                  value={periodStart}
+                  onChange={(e) => setPeriodStart(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="개별 점검 실시일 (선택)"
                 />
               </div>
-            </>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">종료일자 *</label>
+                <input
+                  type="date"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
           )}
 
           {/* 점검자 */}

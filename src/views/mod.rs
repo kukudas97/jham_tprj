@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod auth;
 pub mod asset;
 pub mod asset_category;

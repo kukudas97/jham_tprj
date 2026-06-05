@@ -300,18 +300,20 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              비고 {activeRequiredFields.note && <span className="text-red-500">*</span>}
-            </label>
-            <textarea
-              value={form.note ?? ''}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              rows={2}
-              placeholder="비고 내용"
-              className={`${inputCls(activeRequiredFields.note && !form.note?.trim())} resize-none`}
-            />
-          </div>
+          {activeRequiredFields.note && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                비고 <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={form.note ?? ''}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                rows={2}
+                placeholder="비고 내용"
+                className={`${inputCls(!form.note?.trim())} resize-none`}
+              />
+            </div>
+          )}
 
           {activeFieldDefs.length > 0 && (
             <div className="border-t border-gray-100 pt-4 space-y-3">

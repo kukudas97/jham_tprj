@@ -1,5 +1,5 @@
 import client from './client';
-import type { Category, FieldDef } from './types';
+import type { Category, FieldDef, ReorderItem } from './types';
 
 export const list = () => client.get<Category[]>('/categories').then((r) => r.data);
 
@@ -52,3 +52,8 @@ export const updateFieldDef = (catPid: string, fieldPid: string, params: UpdateF
 
 export const removeFieldDef = (catPid: string, fieldPid: string) =>
   client.delete(`/categories/${catPid}/fields/${fieldPid}`);
+
+export { ReorderItem } from './types';
+
+export const reorderCategories = (items: ReorderItem[]) =>
+  client.put('/categories/reorder', items);
