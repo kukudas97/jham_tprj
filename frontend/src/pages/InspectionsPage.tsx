@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout';
 import InspectionModal from '../components/InspectionModal';
 import * as inspectionsApi from '../api/inspections';
+import * as assetsApi from '../api/assets';
 import * as departmentsApi from '../api/departments';
 import type { Department, InspectionListItem, InspectionResult, InspectionType } from '../api/types';
 
@@ -29,6 +30,9 @@ const InspectionsPage: React.FC = () => {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
+  // 체크박스 선택
+  const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
+
   // 점검 상세 모달
   const [selectedItem, setSelectedItem] = useState<InspectionListItem | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -37,36 +41,14 @@ const InspectionsPage: React.FC = () => {
   const [sortKey, setSortKey] = useState<string>('created_at');
   const [sortAsc, setSortAsc] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [data, deptData] = await Promise.all([
-        inspectionsApi.list({
-          asset_name: filterAssetName || undefined,
-          department_pid: filterDeptPid || undefined,
-          team_pid: filterTeamPid || undefined,
-          inspection_type: filterType || undefined,
-          inspection_result: filterResult || undefined,
-          date_from: filterDateFrom || undefined,
-          date_to: filterDateTo || undefined,
-        }),
-        departmentsApi.list(),
-      ]);
-      setItems(data);
-      setDepartments(deptData);
-    } finally {
-      setLoading(false);
-    }
-  }, [filterAssetName, filterDeptPid, filterTeamPid, filterType, filterResult, filterDateFrom, filterDateTo]);
-
   useEffect(() => {
-    // 초기 로드: 부서 목록만 먼저 가져오고, 점검 조회는 검색 버튼으로
     departmentsApi.list().then(setDepartments).catch(() => {});
     handleSearch();
   }, []);
 
   const handleSearch = useCallback(() => {
     setLoading(true);
+    setSelectedPids(new Set());
     inspectionsApi.list({
       asset_name: filterAssetName || undefined,
       department_pid: filterDeptPid || undefined,
@@ -95,6 +77,38 @@ const InspectionsPage: React.FC = () => {
       return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [items, sortKey, sortAsc]);
+
+  const allSelected = sorted.length > 0 && sorted.every((item) => selectedPids.has(item.pid));
+  const someSelected = selectedPids.size > 0;
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setSelectedPids(new Set());
+    } else {
+      setSelectedPids(new Set(sorted.map((item) => item.pid)));
+    }
+  };
+
+  const handleTogglePid = (pid: string) => {
+    setSelectedPids((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPids.size === 0) return;
+    if (!window.confirm(`선택한 점검이력 ${selectedPids.size}건을 삭제하시겠습니까?`)) return;
+    try {
+      await assetsApi.bulkDeleteInspections(Array.from(selectedPids));
+      setSelectedPids(new Set());
+      handleSearch();
+    } catch {
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
 
   const SortIcon = ({ col }: { col: string }) => (
     <span className="ml-0.5 text-gray-300">
@@ -189,7 +203,21 @@ const InspectionsPage: React.FC = () => {
         {/* 그리드 */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500">총 <span className="font-semibold text-gray-900">{items.length}</span>건</span>
+            <span className="text-sm text-gray-500">
+              총 <span className="font-semibold text-gray-900">{items.length}</span>건
+              {someSelected && (
+                <span className="ml-2 text-indigo-600 font-medium">{selectedPids.size}건 선택됨</span>
+              )}
+            </span>
+            {someSelected && (
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="px-4 py-1.5 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+              >
+                선택 삭제 ({selectedPids.size})
+              </button>
+            )}
           </div>
 
           {/* 데스크탑 테이블 */}
@@ -197,6 +225,14 @@ const InspectionsPage: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </th>
                   {[
                     { key: 'asset_name', label: '자산명' },
                     { key: 'asset_serial_number', label: '자산번호' },
@@ -220,18 +256,29 @@ const InspectionsPage: React.FC = () => {
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">조회 중...</td>
+                    <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">조회 중...</td>
                   </tr>
                 ) : sorted.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">점검 이력이 없습니다</td>
+                    <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">점검 이력이 없습니다</td>
                   </tr>
                 ) : sorted.map((item) => (
                   <tr
                     key={item.pid}
                     onClick={() => { setSelectedItem(item); setShowModal(true); }}
-                    className="hover:bg-indigo-50/30 cursor-pointer transition-colors"
+                    className={`hover:bg-indigo-50/30 cursor-pointer transition-colors ${selectedPids.has(item.pid) ? 'bg-indigo-50/50' : ''}`}
                   >
+                    <td
+                      className="px-4 py-3 w-10"
+                      onClick={(e) => { e.stopPropagation(); handleTogglePid(item.pid); }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedPids.has(item.pid)}
+                        onChange={() => handleTogglePid(item.pid)}
+                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium text-gray-800">{item.asset_name ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-500 font-mono text-xs">{item.asset_serial_number ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{item.department_name ?? '-'}</td>
@@ -267,29 +314,44 @@ const InspectionsPage: React.FC = () => {
             ) : sorted.map((item) => (
               <div
                 key={item.pid}
-                onClick={() => { setSelectedItem(item); setShowModal(true); }}
-                className="p-4 hover:bg-indigo-50/30 cursor-pointer"
+                className={`p-4 flex items-start gap-3 ${selectedPids.has(item.pid) ? 'bg-indigo-50/50' : 'hover:bg-indigo-50/30'}`}
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">{item.asset_name ?? '-'}</p>
-                    <p className="text-xs text-gray-400 font-mono">{item.asset_serial_number ?? '-'}</p>
+                <div
+                  className="pt-0.5 flex-shrink-0"
+                  onClick={(e) => { e.stopPropagation(); handleTogglePid(item.pid); }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedPids.has(item.pid)}
+                    onChange={() => handleTogglePid(item.pid)}
+                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </div>
+                <div
+                  className="flex-1 cursor-pointer"
+                  onClick={() => { setSelectedItem(item); setShowModal(true); }}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="font-medium text-gray-800 text-sm">{item.asset_name ?? '-'}</p>
+                      <p className="text-xs text-gray-400 font-mono">{item.asset_serial_number ?? '-'}</p>
+                    </div>
+                    {item.inspection_result && (
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0 ${RESULT_BADGE[item.inspection_result]}`}>
+                        {item.inspection_result}
+                      </span>
+                    )}
                   </div>
-                  {item.inspection_result && (
-                    <span className={`px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0 ${RESULT_BADGE[item.inspection_result]}`}>
-                      {item.inspection_result}
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                    {item.department_name && <span>{item.department_name}</span>}
+                    {item.team_name && <span>· {item.team_name}</span>}
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${item.inspection_type === '기간점검' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {item.inspection_type}
                     </span>
-                  )}
+                    <span>{item.inspection_date ?? (item.period_start ? `${item.period_start}~${item.period_end}` : '')}</span>
+                  </div>
+                  {item.remarks && <p className="text-xs text-gray-400 mt-1 truncate">{item.remarks}</p>}
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                  {item.department_name && <span>{item.department_name}</span>}
-                  {item.team_name && <span>· {item.team_name}</span>}
-                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${item.inspection_type === '기간점검' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {item.inspection_type}
-                  </span>
-                  <span>{item.inspection_date ?? (item.period_start ? `${item.period_start}~${item.period_end}` : '')}</span>
-                </div>
-                {item.remarks && <p className="text-xs text-gray-400 mt-1 truncate">{item.remarks}</p>}
               </div>
             ))}
           </div>

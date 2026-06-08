@@ -89,9 +89,26 @@ pub async fn remove(
     format::empty()
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BulkDeleteParams {
+    pub pids: Vec<String>,
+}
+
+#[debug_handler]
+pub async fn remove_bulk(
+    auth: auth::JWT,
+    State(ctx): State<AppContext>,
+    Json(params): Json<BulkDeleteParams>,
+) -> Result<Response> {
+    let _company_id = get_company_id(&auth, &ctx).await?;
+    Model::delete_by_pids(&ctx.db, &params.pids).await?;
+    format::empty()
+}
+
 pub fn routes() -> Routes {
     Routes::new()
         .prefix("api/asset_inspections/")
+        .add("bulk", delete(remove_bulk))
         .add("{pid}", get(get_one))
         .add("{pid}", delete(remove))
         .add("{pid}", put(update))

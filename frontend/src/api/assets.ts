@@ -38,6 +38,9 @@ export const updateInspection = (pid: string, params: InspectionParams) =>
 export const deleteInspection = (pid: string) =>
   client.delete(`/asset_inspections/${pid}`);
 
+export const bulkDeleteInspections = (pids: string[]) =>
+  client.delete('/asset_inspections/bulk', { data: { pids } });
+
 export const uploadPhoto = (pid: string, file: File) => {
   const form = new FormData();
   form.append('photo', file);

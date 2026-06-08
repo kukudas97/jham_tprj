@@ -41,6 +41,18 @@ impl Model {
         Ok(())
     }
 
+    pub async fn delete_by_pids(db: &DatabaseConnection, pids: &[String]) -> ModelResult<()> {
+        if pids.is_empty() {
+            return Ok(());
+        }
+        let uuids: Vec<Uuid> = pids.iter().filter_map(|p| Uuid::parse_str(p).ok()).collect();
+        asset_inspections::Entity::delete_many()
+            .filter(asset_inspections::Column::Pid.is_in(uuids))
+            .exec(db)
+            .await?;
+        Ok(())
+    }
+
     pub async fn find_all_by_asset(
         db: &DatabaseConnection,
         asset_id: i32,
