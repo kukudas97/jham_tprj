@@ -390,7 +390,9 @@ const AssetsPage: React.FC = () => {
         av = label(a); bv = label(b);
       }
       else if (sortConfig.key === 'serial') { av = a.serial_number ?? ''; bv = b.serial_number ?? ''; }
-      else if (sortConfig.key === 'location') { av = a.location ?? ''; bv = b.location ?? ''; }
+      else if (sortConfig.key === 'location') { av = a.department_name ?? ''; bv = b.department_name ?? ''; }
+      else if (sortConfig.key === '팀명') { av = a.team_name ?? ''; bv = b.team_name ?? ''; }
+      else if (sortConfig.key === '관리자') { av = a.manager_name ?? ''; bv = b.manager_name ?? ''; }
       else if (sortConfig.key === 'appraised_value') {
         const cmp = (a.appraised_value ?? 0) - (b.appraised_value ?? 0);
         return sortConfig.dir === 'asc' ? cmp : -cmp;
@@ -418,7 +420,7 @@ const AssetsPage: React.FC = () => {
     ? `전체 ${filtered.length}개`
     : `총 ${filtered.length}개 중 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)}개`;
 
-  const selectedAssets = filtered.filter((a) => selectedPids.has(a.pid));
+  const selectedAssets = sorted.filter((a) => selectedPids.has(a.pid));
   const isAllSelected = paginated.length > 0 && paginated.every((a) => selectedPids.has(a.pid));
   const isIndeterminate = !isAllSelected && paginated.some((a) => selectedPids.has(a.pid));
 
@@ -461,7 +463,7 @@ const AssetsPage: React.FC = () => {
   };
 
   // 선택된 항목이 있으면 선택 기준, 없으면 필터 기준으로 처리
-  const targetAssets = selectedPids.size > 0 ? selectedAssets : filtered;
+  const targetAssets = selectedPids.size > 0 ? selectedAssets : sorted;
 
   const getCategoryLabel = (asset: Asset) => {
     if (!asset.category_name) return null;
