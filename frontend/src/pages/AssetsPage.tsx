@@ -397,6 +397,12 @@ const AssetsPage: React.FC = () => {
         const cmp = (a.appraised_value ?? 0) - (b.appraised_value ?? 0);
         return sortConfig.dir === 'asc' ? cmp : -cmp;
       }
+      else if (sortConfig.key === 'last_inspection_date') {
+        av = a.last_inspection_date ?? ''; bv = b.last_inspection_date ?? '';
+      }
+      else if (sortConfig.key === 'last_inspection_result') {
+        av = a.last_inspection_result ?? ''; bv = b.last_inspection_result ?? '';
+      }
       else {
         const fv = (x: Asset) =>
           x.field_values?.find((v) => v.field_label === sortConfig.key || v.field_name === sortConfig.key)?.value ?? '';
@@ -711,6 +717,8 @@ const AssetsPage: React.FC = () => {
                       { key: 'name', label: '품명' },
                       { key: 'serial', label: '식별번호' },
                       { key: 'appraised_value', label: '평가금액' },
+                      { key: 'last_inspection_date', label: '점검일자' },
+                      { key: 'last_inspection_result', label: '점검결과' },
                     ].map(({ key, label }) => (
                       <th
                         key={key}
@@ -769,6 +777,26 @@ const AssetsPage: React.FC = () => {
                           {asset.appraised_value > 0
                             ? `${asset.appraised_value.toLocaleString('ko-KR')}원`
                             : '-'}
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-500 text-sm">
+                          {asset.last_inspection_date ?? '-'}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {asset.last_inspection_result ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                              asset.last_inspection_result === '점검완료'
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : asset.last_inspection_result === '재점검필요'
+                                  ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                  : asset.last_inspection_result === '폐기처리'
+                                    ? 'bg-red-50 text-red-700 border border-red-200'
+                                    : 'bg-gray-50 text-gray-600 border border-gray-200'
+                            }`}>
+                              {asset.last_inspection_result}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -45,6 +45,8 @@ pub struct Params {
     pub team_pid: Option<String>,
     pub manager_name: Option<String>,
     #[serde(default)]
+    pub appraised_value: Option<i64>,
+    #[serde(default)]
     pub field_values: Vec<FieldValueInput>,
 }
 
@@ -243,7 +245,9 @@ pub async fn list(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Resp
         teams_list.into_iter().map(|t| (t.id, t)).collect();
 
     let asset_ids: Vec<i32> = items.iter().map(|a| a.id).collect();
-    let mut fv_map = build_field_value_responses(&ctx.db, asset_ids, company_id).await?;
+    let mut fv_map = build_field_value_responses(&ctx.db, asset_ids.clone(), company_id).await?;
+    let mut insp_map =
+        asset_inspections::Model::find_latest_by_assets(&ctx.db, asset_ids).await?;
 
     let responses: Vec<AssetResponse> = items
         .into_iter()
@@ -252,7 +256,12 @@ pub async fn list(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Resp
             let dept = a.department_id.and_then(|id| dept_map.get(&id));
             let team = a.team_id.and_then(|id| team_map.get(&id));
             let fvs = fv_map.remove(&a.id).unwrap_or_default();
-            AssetResponse::new(a, cat, dept, team, fvs)
+            let last_insp = insp_map.remove(&a.id);
+            let last_inspection_date =
+                last_insp.as_ref().and_then(|i| i.inspection_date).map(|d| d.to_string());
+            let last_inspection_result =
+                last_insp.as_ref().and_then(|i| i.inspection_result.clone());
+            AssetResponse::new(a, cat, dept, team, fvs, last_inspection_date, last_inspection_result)
         })
         .collect();
 
@@ -280,6 +289,7 @@ pub async fn add(
     item.department_id = Set(dept.as_ref().map(|d| d.id));
     item.team_id = Set(team.as_ref().map(|t| t.id));
     item.manager_name = Set(params.manager_name);
+    item.appraised_value = Set(params.appraised_value.unwrap_or(0));
     let item = item.insert(&ctx.db).await?;
 
     save_field_values(&ctx.db, item.id, &params.field_values, company_id).await?;
@@ -300,7 +310,7 @@ pub async fn add(
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs, None, None))
 }
 
 #[debug_handler]
@@ -325,6 +335,9 @@ pub async fn update(
     item.department_id = Set(dept.as_ref().map(|d| d.id));
     item.team_id = Set(team.as_ref().map(|t| t.id));
     item.manager_name = Set(params.manager_name);
+    if let Some(v) = params.appraised_value {
+        item.appraised_value = Set(v);
+    }
     let item = item.update(&ctx.db).await?;
 
     save_field_values(&ctx.db, asset_id, &params.field_values, company_id).await?;
@@ -333,7 +346,7 @@ pub async fn update(
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs, None, None))
 }
 
 #[debug_handler]
@@ -380,7 +393,7 @@ pub async fn get_one(
     let mut fv_map =
         build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
-    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
+    format::json(AssetResponse::new(item, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs, None, None))
 }
 
 #[debug_handler]
@@ -552,7 +565,7 @@ pub async fn upload_photo(
     let mut fv_map = build_field_value_responses(&ctx.db, vec![asset_id], company_id).await?;
     let fvs = fv_map.remove(&asset_id).unwrap_or_default();
 
-    format::json(AssetResponse::new(updated, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs))
+    format::json(AssetResponse::new(updated, cat.as_ref(), dept.as_ref(), team.as_ref(), fvs, None, None))
 }
 
 // ─── 통계 (신규): 부서/팀 행 × 자산분류 열 (Image 1) ─────────────────────────

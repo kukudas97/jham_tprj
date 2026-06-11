@@ -121,6 +121,8 @@ pub struct AssetResponse {
     pub appraised_value: i64,
     pub field_values: Vec<FieldValueResponse>,
     pub photo_url: Option<String>,
+    pub last_inspection_date: Option<String>,
+    pub last_inspection_result: Option<String>,
 }
 
 impl AssetResponse {
@@ -130,6 +132,8 @@ impl AssetResponse {
         department: Option<&departments::Model>,
         team: Option<&teams::Model>,
         field_values: Vec<FieldValueResponse>,
+        last_inspection_date: Option<String>,
+        last_inspection_result: Option<String>,
     ) -> Self {
         let photo_url = asset.photo_path.as_deref().map(|p| {
             let filename = std::path::Path::new(p)
@@ -154,6 +158,8 @@ impl AssetResponse {
             appraised_value: asset.appraised_value,
             field_values,
             photo_url,
+            last_inspection_date,
+            last_inspection_result,
         }
     }
 }

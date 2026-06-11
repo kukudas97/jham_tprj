@@ -20,8 +20,9 @@ const defaultRequired = (): CategoryRequiredFields => ({
 const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave }) => {
   const [form, setForm] = useState<AssetParams>({
     name: '', serial_number: '', location: '', note: '', category_pid: '',
-    department_pid: '', team_pid: '', manager_name: '',
+    department_pid: '', team_pid: '', manager_name: '', appraised_value: undefined,
   });
+  const [appraisedInput, setAppraisedInput] = useState('');
   const [selectedParentPid, setSelectedParentPid] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -50,7 +51,13 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         department_pid: editing.department_pid ?? '',
         team_pid: editing.team_pid ?? '',
         manager_name: editing.manager_name ?? '',
+        appraised_value: editing.appraised_value || undefined,
       });
+      setAppraisedInput(
+        editing.appraised_value > 0
+          ? editing.appraised_value.toLocaleString('ko-KR')
+          : '',
+      );
       const fvMap: Record<string, string> = {};
       for (const fv of editing.field_values ?? []) {
         fvMap[fv.field_def_pid] = fv.value ?? '';
@@ -59,7 +66,8 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
       setPhotoPreview(editing.photo_url ?? null);
     } else {
       setForm({ name: '', serial_number: '', location: '', note: '', category_pid: '',
-        department_pid: '', team_pid: '', manager_name: '' });
+        department_pid: '', team_pid: '', manager_name: '', appraised_value: undefined });
+      setAppraisedInput('');
       setSelectedParentPid('');
       setCustomFieldValues({});
       setPhotoPreview(null);
@@ -133,6 +141,9 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         .map((def) => ({ field_def_pid: def.pid, value: customFieldValues[def.pid] || undefined }))
         .filter((fv) => fv.value);
 
+      const rawAppraised = appraisedInput.replace(/,/g, '');
+      const appraisedNum = rawAppraised ? Number(rawAppraised) : undefined;
+
       const params: AssetParams = {
         name: form.name,
         serial_number: form.serial_number || undefined,
@@ -142,6 +153,7 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
         department_pid: form.department_pid || undefined,
         team_pid: form.team_pid || undefined,
         manager_name: form.manager_name || undefined,
+        appraised_value: appraisedNum && !isNaN(appraisedNum) ? appraisedNum : 0,
         field_values: fieldValuesPayload,
       };
 
@@ -270,6 +282,24 @@ const AssetFormModal: React.FC<Props> = ({ editing, categories, onClose, onSave 
               value={form.manager_name ?? ''}
               onChange={(e) => setForm({ ...form, manager_name: e.target.value })}
               placeholder="담당자 이름"
+              className={inputCls(false)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">평가금액</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={appraisedInput}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/,/g, '');
+                const num = Number(raw);
+                if (raw === '' || (!isNaN(num) && raw !== '')) {
+                  setAppraisedInput(raw === '' ? '' : num.toLocaleString('ko-KR'));
+                }
+              }}
+              placeholder="0"
               className={inputCls(false)}
             />
           </div>

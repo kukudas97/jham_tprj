@@ -1,5 +1,6 @@
 use loco_rs::prelude::*;
 use sea_orm::{Condition, QueryOrder};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub use super::_entities::asset_inspections::{self, ActiveModel, Entity, Model};
@@ -51,6 +52,29 @@ impl Model {
             .exec(db)
             .await?;
         Ok(())
+    }
+
+    pub async fn find_latest_by_assets(
+        db: &DatabaseConnection,
+        asset_ids: Vec<i32>,
+    ) -> ModelResult<HashMap<i32, Self>> {
+        if asset_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let all = asset_inspections::Entity::find()
+            .filter(
+                Condition::all()
+                    .add(asset_inspections::Column::AssetId.is_in(asset_ids))
+                    .add(asset_inspections::Column::DeletedAt.is_null()),
+            )
+            .order_by_desc(asset_inspections::Column::CreatedAt)
+            .all(db)
+            .await?;
+        let mut map: HashMap<i32, Self> = HashMap::new();
+        for insp in all {
+            map.entry(insp.asset_id).or_insert(insp);
+        }
+        Ok(map)
     }
 
     pub async fn find_all_by_asset(

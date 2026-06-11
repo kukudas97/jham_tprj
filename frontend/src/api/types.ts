@@ -39,6 +39,8 @@ export interface Asset {
   appraised_value: number;
   field_values: FieldValue[];
   photo_url: string | null;
+  last_inspection_date: string | null;
+  last_inspection_result: string | null;
 }
 
 export interface AssetParams {
@@ -50,6 +52,7 @@ export interface AssetParams {
   department_pid?: string;
   team_pid?: string;
   manager_name?: string;
+  appraised_value?: number;
   field_values?: { field_def_pid: string; value?: string }[];
 }
 
