@@ -1,7 +1,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unnecessary_struct_initialization)]
 #![allow(clippy::unused_async)]
-use axum::extract::Multipart;
+use axum::extract::{DefaultBodyLimit, Multipart};
 use axum::http::header;
 use axum::response::IntoResponse;
 use loco_rs::prelude::*;
@@ -1042,7 +1042,7 @@ pub fn routes() -> Routes {
         .add("{pid}", delete(remove))
         .add("{pid}", put(update))
         .add("{pid}", patch(update))
-        .add("{pid}/photo", post(upload_photo))
+        .add("{pid}/photo", post(upload_photo).layer(DefaultBodyLimit::max(20 * 1024 * 1024)))
         .add("{pid}/qr", get(get_qr))
         .add("{pid}/inspections", get(list_inspections))
         .add("{pid}/inspections", post(add_inspection))
