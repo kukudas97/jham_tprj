@@ -955,6 +955,24 @@ const AssetsPage: React.FC = () => {
                             {asset.appraised_value.toLocaleString('ko-KR')}원
                           </span>
                         )}
+                        {asset.last_inspection_date && (
+                          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            점검일 {asset.last_inspection_date}
+                          </span>
+                        )}
+                        {asset.last_inspection_result && (
+                          <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
+                            asset.last_inspection_result === '점검완료'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : asset.last_inspection_result === '재점검필요'
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                : asset.last_inspection_result === '폐기처리'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : 'bg-gray-50 text-gray-600 border-gray-200'
+                          }`}>
+                            {asset.last_inspection_result}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
