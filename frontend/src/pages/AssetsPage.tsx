@@ -482,7 +482,7 @@ const AssetsPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6 max-w-7xl">
+      <div className="p-4 md:p-6 max-w-[1600px]">
         {/* 헤더 */}
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -723,7 +723,7 @@ const AssetsPage: React.FC = () => {
                       <th
                         key={key}
                         onClick={() => handleSort(key)}
-                        className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                        className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors whitespace-nowrap"
                       >
                         <span className="flex items-center gap-0.5">
                           {label}{sortIcon(key)}
