@@ -39,6 +39,7 @@ services:
       - "5150:5150"
     volumes:
       - qr_data:/app/qr
+      - photos_data:/app/uploads/photos
 
   nginx:
     image: nginx:alpine
@@ -55,3 +56,4 @@ services:
 volumes:
   postgres_data:
   qr_data:
+  photos_data:
