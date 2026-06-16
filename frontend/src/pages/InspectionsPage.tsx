@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout';
-import InspectionModal from '../components/InspectionModal';
+import AssetDetailDrawer from '../components/AssetDetailDrawer';
 import * as inspectionsApi from '../api/inspections';
 import * as assetsApi from '../api/assets';
 import * as departmentsApi from '../api/departments';
@@ -33,9 +33,8 @@ const InspectionsPage: React.FC = () => {
   // 체크박스 선택
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
 
-  // 점검 상세 모달
-  const [selectedItem, setSelectedItem] = useState<InspectionListItem | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  // 자산 상세 드로어
+  const [drawerAssetPid, setDrawerAssetPid] = useState<string | null>(null);
 
   // 정렬
   const [sortKey, setSortKey] = useState<string>('created_at');
@@ -265,7 +264,7 @@ const InspectionsPage: React.FC = () => {
                 ) : sorted.map((item) => (
                   <tr
                     key={item.pid}
-                    onClick={() => { setSelectedItem(item); setShowModal(true); }}
+                    onClick={() => { setDrawerAssetPid(item.asset_pid ?? null); }}
                     className={`hover:bg-indigo-50/30 cursor-pointer transition-colors ${selectedPids.has(item.pid) ? 'bg-indigo-50/50' : ''}`}
                   >
                     <td
@@ -329,7 +328,7 @@ const InspectionsPage: React.FC = () => {
                 </div>
                 <div
                   className="flex-1 cursor-pointer"
-                  onClick={() => { setSelectedItem(item); setShowModal(true); }}
+                  onClick={() => { setDrawerAssetPid(item.asset_pid ?? null); }}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
@@ -358,25 +357,11 @@ const InspectionsPage: React.FC = () => {
         </div>
       </div>
 
-      {showModal && selectedItem && (
-        <InspectionModal
-          assetPid={selectedItem.asset_pid ?? ''}
-          inspection={{
-            pid: selectedItem.pid,
-            inspector_name: selectedItem.inspector_name,
-            note: selectedItem.note,
-            inspection_type: selectedItem.inspection_type,
-            inspection_result: selectedItem.inspection_result,
-            inspection_date: selectedItem.inspection_date,
-            period_start: selectedItem.period_start,
-            period_end: selectedItem.period_end,
-            remarks: selectedItem.remarks,
-            created_at: selectedItem.created_at,
-          }}
-          onClose={() => setShowModal(false)}
-          onSaved={() => { setShowModal(false); handleSearch(); }}
-        />
-      )}
+      <AssetDetailDrawer
+        pid={drawerAssetPid}
+        onClose={() => setDrawerAssetPid(null)}
+        onSaved={() => handleSearch()}
+      />
     </Layout>
   );
 };
