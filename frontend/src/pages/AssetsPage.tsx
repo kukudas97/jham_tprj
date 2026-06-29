@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import * as assetsApi from '../api/assets';
 import * as categoriesApi from '../api/categories';
 import * as departmentsApi from '../api/departments';
+import * as inspectionsApi from '../api/inspections';
 import type { Asset, Category, Department } from '../api/types';
 import Layout from '../components/Layout';
 import AssetFormModal from '../components/AssetFormModal';
@@ -252,6 +253,9 @@ const AssetsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(25);
   const [filterDeptPids, setFilterDeptPids] = useState<string[]>([]);
   const [filterTeamPids, setFilterTeamPids] = useState<string[]>([]);
+  const [filterInspectionResults, setFilterInspectionResults] = useState<string[]>([]);
+  const [filterYear, setFilterYear] = useState<string>('');
+  const [yearInspectionMap, setYearInspectionMap] = useState<Map<string, { date: string | null; result: string | null }>>(new Map());
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(() => searchParams.get('open'));
   const [deletingPids, setDeletingPids] = useState<Set<string>>(new Set());
@@ -276,7 +280,32 @@ const AssetsPage: React.FC = () => {
   useEffect(() => { fetchAll(); }, []);
 
   // 필터 변경 시 선택 및 페이지 초기화
-  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPids, filterDeptPids, filterTeamPids]);
+  useEffect(() => { setSelectedPids(new Set()); setPage(1); }, [search, filterCategoryPids, filterDeptPids, filterTeamPids, filterInspectionResults]);
+
+  // 연도 선택 시 해당 연도의 점검 데이터 fetch
+  useEffect(() => {
+    if (!filterYear) {
+      setYearInspectionMap(new Map());
+      return;
+    }
+    inspectionsApi.list({
+      date_from: `${filterYear}-01-01`,
+      date_to: `${filterYear}-12-31`,
+    }).then((items) => {
+      const map = new Map<string, { date: string | null; result: string | null }>();
+      for (const item of items) {
+        if (!item.asset_pid) continue;
+        const existing = map.get(item.asset_pid);
+        if (
+          !existing ||
+          (item.inspection_date && (!existing.date || item.inspection_date > existing.date))
+        ) {
+          map.set(item.asset_pid, { date: item.inspection_date, result: item.inspection_result });
+        }
+      }
+      setYearInspectionMap(map);
+    });
+  }, [filterYear]);
 
   // 부서 필터 변경 시 유효하지 않은 팀 선택 제거
   useEffect(() => {
@@ -345,6 +374,17 @@ const AssetsPage: React.FC = () => {
     [departments, filterDeptPids],
   );
 
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 2019 }, (_, i) => currentYear - i);
+
+  const getDisplayInspection = (asset: Asset) => {
+    if (filterYear) {
+      const d = yearInspectionMap.get(asset.pid);
+      return { date: d?.date ?? null, result: d?.result ?? null };
+    }
+    return { date: asset.last_inspection_date, result: asset.last_inspection_result };
+  };
+
   const categoryOptions = useMemo(
     () => categories.flatMap((cat) => [
       { value: cat.pid, label: `${cat.name} (전체)`, indent: false },
@@ -363,6 +403,13 @@ const AssetsPage: React.FC = () => {
     [teamOptions],
   );
 
+  const INSPECTION_RESULT_OPTIONS: SelectOption[] = [
+    { value: '점검완료', label: '점검완료' },
+    { value: '재점검필요', label: '재점검필요' },
+    { value: '폐기처리', label: '폐기처리' },
+    { value: '__none__', label: '미점검' },
+  ];
+
   const filtered = assets.filter((a) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -372,7 +419,11 @@ const AssetsPage: React.FC = () => {
     const matchCategory = !filterCategoryPidSet || filterCategoryPidSet.has(a.category_pid ?? '');
     const matchDept = filterDeptPids.length === 0 || filterDeptPids.includes(a.department_pid ?? '');
     const matchTeam = filterTeamPids.length === 0 || filterTeamPids.includes(a.team_pid ?? '');
-    return matchSearch && matchCategory && matchDept && matchTeam;
+    const matchInspection = filterInspectionResults.length === 0 || (
+      filterInspectionResults.includes(a.last_inspection_result ?? '__none__') ||
+      (!a.last_inspection_result && filterInspectionResults.includes('__none__'))
+    );
+    return matchSearch && matchCategory && matchDept && matchTeam && matchInspection;
   });
 
   const sorted = useMemo(() => {
@@ -478,7 +529,7 @@ const AssetsPage: React.FC = () => {
   };
 
   const categorizedCount = assets.filter((a) => a.category_pid).length;
-  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0;
+  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0 || filterInspectionResults.length > 0 || filterYear !== '';
 
   return (
     <Layout>
@@ -593,8 +644,8 @@ const AssetsPage: React.FC = () => {
         </div>
 
         {/* 검색 + 필터 */}
-        <div className="mb-4 flex flex-col sm:flex-row gap-2 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -624,10 +675,28 @@ const AssetsPage: React.FC = () => {
             onChange={setFilterTeamPids}
             placeholder="전체 팀"
           />
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className={`flex items-center px-3 py-2.5 border rounded-xl text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+              filterYear ? 'border-indigo-400 text-indigo-700 bg-indigo-50/30' : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            <option value="">전체 연도</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={String(y)}>{y}년</option>
+            ))}
+          </select>
+          <MultiSelectDropdown
+            options={INSPECTION_RESULT_OPTIONS}
+            selected={filterInspectionResults}
+            onChange={setFilterInspectionResults}
+            placeholder="점검결과"
+          />
           {(hasFilter) && (
             <button
               type="button"
-              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); }}
+              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); setFilterInspectionResults([]); setFilterYear(''); }}
               className="flex items-center gap-1 px-3 py-2.5 text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               title="필터 초기화"
             >
@@ -779,24 +848,27 @@ const AssetsPage: React.FC = () => {
                             : '-'}
                         </td>
                         <td className="px-5 py-3.5 text-gray-500 text-sm">
-                          {asset.last_inspection_date ?? '-'}
+                          {(() => { const d = getDisplayInspection(asset); return d.date ?? '-'; })()}
                         </td>
                         <td className="px-5 py-3.5">
-                          {asset.last_inspection_result ? (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
-                              asset.last_inspection_result === '점검완료'
-                                ? 'bg-green-50 text-green-700 border border-green-200'
-                                : asset.last_inspection_result === '재점검필요'
-                                  ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                                  : asset.last_inspection_result === '폐기처리'
-                                    ? 'bg-red-50 text-red-700 border border-red-200'
-                                    : 'bg-gray-50 text-gray-600 border border-gray-200'
-                            }`}>
-                              {asset.last_inspection_result}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
+                          {(() => {
+                            const d = getDisplayInspection(asset);
+                            return d.result ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                                d.result === '점검완료'
+                                  ? 'bg-green-50 text-green-700 border border-green-200'
+                                  : d.result === '재점검필요'
+                                    ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                    : d.result === '폐기처리'
+                                      ? 'bg-red-50 text-red-700 border border-red-200'
+                                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                              }`}>
+                                {d.result}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">-</span>
+                            );
+                          })()}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -955,24 +1027,31 @@ const AssetsPage: React.FC = () => {
                             {asset.appraised_value.toLocaleString('ko-KR')}원
                           </span>
                         )}
-                        {asset.last_inspection_date && (
-                          <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                            점검일 {asset.last_inspection_date}
-                          </span>
-                        )}
-                        {asset.last_inspection_result && (
-                          <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
-                            asset.last_inspection_result === '점검완료'
-                              ? 'bg-green-50 text-green-700 border-green-200'
-                              : asset.last_inspection_result === '재점검필요'
-                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                : asset.last_inspection_result === '폐기처리'
-                                  ? 'bg-red-50 text-red-700 border-red-200'
-                                  : 'bg-gray-50 text-gray-600 border-gray-200'
-                          }`}>
-                            {asset.last_inspection_result}
-                          </span>
-                        )}
+                        {(() => {
+                          const d = getDisplayInspection(asset);
+                          return (
+                            <>
+                              {d.date && (
+                                <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                                  점검일 {d.date}
+                                </span>
+                              )}
+                              {d.result && (
+                                <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
+                                  d.result === '점검완료'
+                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                    : d.result === '재점검필요'
+                                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                      : d.result === '폐기처리'
+                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                                }`}>
+                                  {d.result}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
