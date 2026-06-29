@@ -374,8 +374,13 @@ const AssetsPage: React.FC = () => {
     [departments, filterDeptPids],
   );
 
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: currentYear - 2019 }, (_, i) => currentYear - i);
+  const yearOptions = useMemo(() => {
+    const years = new Set<string>();
+    for (const a of assets) {
+      if (a.last_inspection_date) years.add(a.last_inspection_date.slice(0, 4));
+    }
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [assets]);
 
   const getDisplayInspection = (asset: Asset) => {
     if (filterYear) {
@@ -529,7 +534,7 @@ const AssetsPage: React.FC = () => {
   };
 
   const categorizedCount = assets.filter((a) => a.category_pid).length;
-  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0 || filterInspectionResults.length > 0 || filterYear !== String(new Date().getFullYear());
+  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0 || filterInspectionResults.length > 0 || filterYear !== '';
 
   return (
     <Layout>
@@ -696,7 +701,7 @@ const AssetsPage: React.FC = () => {
           {(hasFilter) && (
             <button
               type="button"
-              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); setFilterInspectionResults([]); setFilterYear(String(new Date().getFullYear())); }}
+              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); setFilterInspectionResults([]); setFilterYear(''); }}
               className="flex items-center gap-1 px-3 py-2.5 text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               title="필터 초기화"
             >
