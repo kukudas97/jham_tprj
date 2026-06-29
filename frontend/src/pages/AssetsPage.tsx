@@ -254,7 +254,7 @@ const AssetsPage: React.FC = () => {
   const [filterDeptPids, setFilterDeptPids] = useState<string[]>([]);
   const [filterTeamPids, setFilterTeamPids] = useState<string[]>([]);
   const [filterInspectionResults, setFilterInspectionResults] = useState<string[]>([]);
-  const [filterYear, setFilterYear] = useState<string>('');
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
   const [yearInspectionMap, setYearInspectionMap] = useState<Map<string, { date: string | null; result: string | null }>>(new Map());
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [drawerPid, setDrawerPid] = useState<string | null>(() => searchParams.get('open'));
@@ -529,7 +529,7 @@ const AssetsPage: React.FC = () => {
   };
 
   const categorizedCount = assets.filter((a) => a.category_pid).length;
-  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0 || filterInspectionResults.length > 0 || filterYear !== '';
+  const hasFilter = filterCategoryPids.length > 0 || filterDeptPids.length > 0 || filterTeamPids.length > 0 || filterInspectionResults.length > 0 || filterYear !== String(new Date().getFullYear());
 
   return (
     <Layout>
@@ -696,7 +696,7 @@ const AssetsPage: React.FC = () => {
           {(hasFilter) && (
             <button
               type="button"
-              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); setFilterInspectionResults([]); setFilterYear(''); }}
+              onClick={() => { setFilterCategoryPids([]); setFilterDeptPids([]); setFilterTeamPids([]); setFilterInspectionResults([]); setFilterYear(String(new Date().getFullYear())); }}
               className="flex items-center gap-1 px-3 py-2.5 text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               title="필터 초기화"
             >
