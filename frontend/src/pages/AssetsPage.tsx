@@ -154,6 +154,9 @@ interface SelectOption {
   indent?: boolean;
 }
 
+// 점검 기능 도입 시점(2026-05) 이전 연도는 실제 데이터가 존재할 수 없어 하한으로 고정
+const MIN_INSPECTION_YEAR = 2026;
+
 const MultiSelectDropdown: React.FC<{
   options: SelectOption[];
   selected: string[];
@@ -375,14 +378,6 @@ const AssetsPage: React.FC = () => {
       : departments.flatMap((d) => d.teams),
     [departments, filterDeptPids],
   );
-
-  const yearOptions = useMemo(() => {
-    const years = new Set<string>();
-    for (const a of assets) {
-      if (a.last_inspection_date) years.add(a.last_inspection_date.slice(0, 4));
-    }
-    return Array.from(years).sort((a, b) => Number(b) - Number(a));
-  }, [assets]);
 
   const getDisplayInspection = (asset: Asset) => {
     if (filterYear) {
@@ -697,18 +692,50 @@ const AssetsPage: React.FC = () => {
             onChange={setFilterTeamPids}
             placeholder="전체 팀"
           />
-          <select
-            value={filterYear}
-            onChange={(e) => setFilterYear(e.target.value)}
-            className={`flex items-center px-3 py-2.5 border rounded-xl text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+          <div
+            className={`flex items-center gap-0.5 px-1.5 py-1.5 border rounded-xl text-sm bg-white shadow-sm ${
               filterYear ? 'border-indigo-400 text-indigo-700 bg-indigo-50/30' : 'border-gray-200 text-gray-600'
             }`}
           >
-            <option value="">전체 연도</option>
-            {yearOptions.map((y) => (
-              <option key={y} value={String(y)}>{y}년</option>
-            ))}
-          </select>
+            <button
+              type="button"
+              onClick={() => {
+                const base = filterYear ? Number(filterYear) : new Date().getFullYear();
+                setFilterYear(String(Math.max(MIN_INSPECTION_YEAR, base - 1)));
+              }}
+              disabled={filterYear !== '' && Number(filterYear) <= MIN_INSPECTION_YEAR}
+              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title="이전 연도"
+            >
+              ‹
+            </button>
+            <span className="w-14 text-center font-medium select-none">
+              {filterYear ? `${filterYear}년` : '전체'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const base = filterYear ? Number(filterYear) : new Date().getFullYear();
+                setFilterYear(String(base + 1));
+              }}
+              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+              title="다음 연도"
+            >
+              ›
+            </button>
+            {filterYear && (
+              <button
+                type="button"
+                onClick={() => setFilterYear('')}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                title="전체 연도로 보기"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
           <MultiSelectDropdown
             options={INSPECTION_RESULT_OPTIONS}
             selected={filterInspectionResults}
