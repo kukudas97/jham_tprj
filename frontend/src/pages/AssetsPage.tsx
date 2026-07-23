@@ -428,10 +428,9 @@ const AssetsPage: React.FC = () => {
     const matchCategory = !filterCategoryPidSet || filterCategoryPidSet.has(a.category_pid ?? '');
     const matchDept = filterDeptPids.length === 0 || filterDeptPids.includes(a.department_pid ?? '');
     const matchTeam = filterTeamPids.length === 0 || filterTeamPids.includes(a.team_pid ?? '');
-    const matchInspection = filterInspectionResults.length === 0 || (
-      filterInspectionResults.includes(a.last_inspection_result ?? '__none__') ||
-      (!a.last_inspection_result && filterInspectionResults.includes('__none__'))
-    );
+    const displayResult = getDisplayInspection(a).result;
+    const matchInspection = filterInspectionResults.length === 0 ||
+      filterInspectionResults.includes(displayResult ?? '__none__');
     return matchSearch && matchCategory && matchDept && matchTeam && matchInspection;
   });
 
