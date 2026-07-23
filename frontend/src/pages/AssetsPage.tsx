@@ -379,6 +379,13 @@ const AssetsPage: React.FC = () => {
     [departments, filterDeptPids],
   );
 
+  const yearOptions = useMemo(() => {
+    const maxYear = new Date().getFullYear() + 5;
+    const years: number[] = [];
+    for (let y = maxYear; y >= MIN_INSPECTION_YEAR; y--) years.push(y);
+    return years;
+  }, []);
+
   const getDisplayInspection = (asset: Asset) => {
     if (filterYear) {
       const d = yearInspectionMap.get(asset.pid);
@@ -692,50 +699,18 @@ const AssetsPage: React.FC = () => {
             onChange={setFilterTeamPids}
             placeholder="전체 팀"
           />
-          <div
-            className={`flex items-center gap-0.5 px-1.5 py-1.5 border rounded-xl text-sm bg-white shadow-sm ${
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className={`flex items-center px-3 py-2.5 border rounded-xl text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
               filterYear ? 'border-indigo-400 text-indigo-700 bg-indigo-50/30' : 'border-gray-200 text-gray-600'
             }`}
           >
-            <button
-              type="button"
-              onClick={() => {
-                const base = filterYear ? Number(filterYear) : new Date().getFullYear();
-                setFilterYear(String(Math.max(MIN_INSPECTION_YEAR, base - 1)));
-              }}
-              disabled={filterYear !== '' && Number(filterYear) <= MIN_INSPECTION_YEAR}
-              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="이전 연도"
-            >
-              ‹
-            </button>
-            <span className="w-14 text-center font-medium select-none">
-              {filterYear ? `${filterYear}년` : '전체'}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                const base = filterYear ? Number(filterYear) : new Date().getFullYear();
-                setFilterYear(String(base + 1));
-              }}
-              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-              title="다음 연도"
-            >
-              ›
-            </button>
-            {filterYear && (
-              <button
-                type="button"
-                onClick={() => setFilterYear('')}
-                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                title="전체 연도로 보기"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
+            <option value="">전체 연도</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={String(y)}>{y}년</option>
+            ))}
+          </select>
           <MultiSelectDropdown
             options={INSPECTION_RESULT_OPTIONS}
             selected={filterInspectionResults}
